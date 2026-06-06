@@ -26,10 +26,9 @@ def retrieve_exercises(query, top_k=3):
     return "\n\n".join(results)
 
 
-system_prompt = """You are a medical expert that provides advise on physiotherapy and whether exercises are safe or not
-for people with a past history of injury. You do not shy away from answering questions. Do not provide an introduction.
-Reference relevant details from earlier in the conversation.
-If you are unsure which exercise the user is referring to, ask one clarifying question before answering."""
+system_prompt = """You are a medical expert that provides advise on exercises. You do not shy away from answering questions. 
+Do not provide an introduction.
+Reference relevant details from earlier in the conversation."""
 
 review_prompt = """You are a strict medical peer-reviewer and board-certified physician. 
 Audit the given AI-generated medical response for clinical accuracy, 
@@ -39,10 +38,10 @@ Provide a concise audit covering exactly these five points:
 2. Dangerous Omissions: State any critical red-flag symptoms, safety warnings, or alternative diagnoses the AI missed.
 3. Safety Rating: Classify the original advice as [Safe], [Needs Correction], or [Dangerous].
 4. Biomechanical Analysis: Mentally simulate the physics of every exercise described. 
-Verify that the resistance vector (gravity, cabmy ble, or band anchor point) actually targets the intended muscle group 
+Verify that the resistance vector actually targets the intended muscle group 
 through its proper anatomical range of motion. If the mechanics are physically impossible or target the wrong muscle, 
 flag it as a Factual Error.
-4. Corrected Version: Rewrite the response so it is clinically accurate, safe, and actionable. 
+5. Corrected Version: Rewrite the response so it is clinically accurate, safe, and actionable. 
 
 Be direct, objective, and uncompromising on patient safety. Do not write any conversational intro."""
 
@@ -68,6 +67,7 @@ while True:
     response_content = ""
     retrieved = retrieve_exercises(user_input)
     rag_context = f"Relevant exercises from database:\n\n{retrieved}"
+    print(rag_context)
     initial_response = chat("medical-expert:latest",
                             messages=[{"role": "system", "content": system_prompt}] +
                             messages +
