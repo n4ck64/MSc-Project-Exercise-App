@@ -15,7 +15,7 @@ cur = conn.cursor()
 def classify_intent(user_input, messages):
     """Takes the user's initial query and classifies it in one of five categories:
     general exercise query, exercise query with an injury, making a general plan,
-    making a general plan with an injury, and just chitchatting."""
+    making a general plan with an injury, or just chitchatting."""
 
     context = "\n".join([m["content"]
                         for m in messages[-4:]])  # last 2 exchanges
@@ -142,16 +142,20 @@ If the audit says there are no errors, rewrite the 'Original Advice'.
 3. Keep the safety warnings intact but phrased naturally.
 4. Translate medical jargon into plain English. 
 Forbidden phrases: 'revised version', 'updated advice', 'let me rewrite', 'here is a correction', 
-'Hello', 'Sure thing', 'Great question', 'Of course', 'Absolutely', 
+'Hello', 'Sure thing', 'Great question', 'Of course', 'Absolutely', "Let's get started!",
 'Happy [anything]', 'I understand', 'Engaging conversation!', 'Here is a more conversational version' or similar, 
 'Here's a rewritten version of the original advice:', 'Note:', "I've rewritten", 'according to the rules', 
 '(Note: The original advice has been rewritten to meet the rules.)', 'Let's get down to business!'"""
 
 messages = []  # chat history
-while True:
-    user_input = input(">>")
-    if user_input.lower() == "exit":  # type exit to leave chat, for now
-        break
+
+
+def run_pipeline(user_input):
+    """The main driver behind the chatbot.
+    Takes user input, clarifies intent, retrieves
+    relevant exercises, reviews initial answer,
+    and returns final response"""
+    global messages
     response_content = ""
     # determines user intent before proceeding
     intent = classify_intent(user_input, messages[:-10])
@@ -169,19 +173,14 @@ while True:
             {"role": "system",
                 "content": "You are a helpful fitness assistant. Be conversational and brief."}] + messages[-10:]
             + [{"role": "user", "content": user_input}
-               ], stream=True)
-        for chunk in response:
-            if chunk.message:
-                content = chunk.message.content
-                print(content, end='', flush=True)
-                response_content += content
-        print()
+               ], stream=False)
+        answer = response.message.content
+        response_content += response.message.content
         messages += [
             {"role": "user", "content": user_input},
             {"role": "assistant", "content": response_content}
         ]
-        continue
-
+        return answer
     # below is the result of the SQL queries
     rag_context = f"Relevant exercises:\n\n{retrieved}"
 
@@ -227,22 +226,20 @@ while True:
                               "num_predict": 4096,
                               "num_ctx": 8192
                           },
-                          stream=True)  # final response will stream as it is being generated
+                          stream=False)  # final response will stream as it is being generated
 
+    print(f"Intent: {intent}")
+    print()
     print(f"Initial response: {initial_text}")
     print()
     print(f"Double check: {audit_text}")
     print()
+    response_content += final_response.message.content
+    answer = final_response.message.content
 
-    print("\n>>>> ", end="")
-    for chunk in final_response:
-        if chunk.message:
-            content = chunk.message.content
-            print(content, end='', flush=True)
-            response_content += content
-    print()
     messages += [
         {"role": "user", "content": user_input},
         # adds the user query and subsequent LLM response to the chat history
         {"role": "assistant", "content": response_content}
     ]
+    return answer

@@ -1,23 +1,81 @@
+body {
+    background-color: rgb(255, 255, 232);
+}
+
 h1 {
     color: orange;
     font-size: 64px;
-    font: Arial;
+    font-family: 'Franklin Gothic Medium';
     text-align: center;
+    padding: 10px;
+    background-color: rgba(255, 239, 69, 0.397);
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.2;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+#loading {
+    animation: pulse 1s infinite;
 }
 
 #input-area {
     background-color: orange;
-    padding: 10px 560px;
+    padding: 16px;
     display: flex;
     gap: 10px;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%)
 }
 
 #send-btn {
     font-size: 18px;
+    color: grey;
+    border: 1px solid grey;
+    border-radius: 6px;
+    cursor: pointer;
 }
 
 #user-input {
     font-size: 18px;
     color: grey;
     background-color: palegoldenrod;
+    width: 600px;
+    margin: auto;
+    border: 0.5px solid grey;
+    padding: 4px;
+    border-radius: 8px;
+}
+
+.user-message {
+    font-size: 16px;
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: rgb(255, 255, 206);
+    display: inline-block;
+    text-align: right;
+    border: 1px solid rgb(189, 189, 189);
+    border-radius: 8px;
+    padding: 10px;
+    margin: 5px;
+
+}
+
+.bot-message {
+    font-size: 16px;
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: rgb(255, 255, 232);
+    text-align: left;
+    padding: 12px;
 }
