@@ -1,0 +1,23 @@
+h1 {
+    color: orange;
+    font-size: 64px;
+    font: Arial;
+    text-align: center;
+}
+
+#input-area {
+    background-color: orange;
+    padding: 10px 560px;
+    display: flex;
+    gap: 10px;
+}
+
+#send-btn {
+    font-size: 18px;
+}
+
+#user-input {
+    font-size: 18px;
+    color: grey;
+    background-color: palegoldenrod;
+}
