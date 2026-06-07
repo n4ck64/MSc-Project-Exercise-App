@@ -1,4 +1,9 @@
-from ollama import generate
+"""
+This module handles the LLM pipeline for the fitness app.
+It includes intent classification, injury detection, RAG retrieval,
+and a three-model reponse pipeline (medical answerer, medical reviewer,
+conversational rewriter)
+"""
 from ollama import chat
 import ollama
 import psycopg2
@@ -15,7 +20,7 @@ def classify_intent(user_input, messages):
     context = "\n".join([m["content"]
                         for m in messages[-4:]])  # last 2 exchanges
     response = chat("llama3", messages=[
-        {"role": "system", "content": """You are a classifier. Output exactly one of these labels and nothing else:
+        {"role": "system", "content": f"""You are a classifier. Output exactly one of these labels and nothing else:
     EXERCISE_GENERAL
     EXERCISE_INJURY
     PLAN_GENERAL
@@ -23,6 +28,8 @@ def classify_intent(user_input, messages):
     CHITCHAT
 
     No explanation. No punctuation. No other text. Just the label.
+    Previous conversation:
+    {context}
 
     Examples:
     "what exercises can I do?" → EXERCISE_GENERAL
@@ -36,8 +43,8 @@ def classify_intent(user_input, messages):
 
 
 def extract_injured_muscle(user_input):
-    """Takes user input and if an injury is mentioned, specifies which muscle is 
-    the injured one for RAG to do its thing"""
+    """Takes user input and if an injury is mentioned, 
+    specifies which muscle is the injured one"""
 
     response = chat("llama3", messages=[
         {"role": "system", "content": """You are a muscle ID extractor. Your only job is to return a single number.
@@ -58,16 +65,18 @@ def extract_injured_muscle(user_input):
     801=Calves, 802=Shins, 803=Peroneals"""},
         {"role": "user", "content": user_input}
     ])
+    # result should be part of the list, if not return None
     result = response.message.content.strip()
-    # print(f"The muscle is {result}")
     return int(result) if result.isdigit() else None
 
 
 def retrieve_exercises(query, top_k=3, injured_muscle_id=None):
     """Queries the database to retrieve the three most relevant exercises
     based on the user's input and the corresponding generated embedding"""
-
-    response = ollama.embed(model="nomic-embed-text", input=query)
+    rag_query = query if len(
+        messages) == 0 else messages[-1]["content"] + " " + query
+    # if first message, the RAG uses the query to do its retrieval, else uses the query plus the previous message
+    response = ollama.embed(model="nomic-embed-text", input=rag_query)
     embedding = response.embeddings[0]
     if injured_muscle_id:
         cur.execute("""
@@ -95,7 +104,7 @@ def retrieve_exercises(query, top_k=3, injured_muscle_id=None):
     return "\n\n".join(results)
 
 
-system_prompt = """ IMPORTANT: Never use bullet points, numbered lists, or any list formatting. 
+SYSTEM_PROMPT = """ IMPORTANT: Never use bullet points, numbered lists, or any list formatting. 
 Write only in flowing prose paragraphs.
 
 You are a medical expert that provides advise on exercises.
@@ -103,7 +112,9 @@ You do not shy away from answering questions.
 Do not provide an introduction.
 Reference relevant details from earlier in the conversation."""
 
-review_prompt = """You are a strict medical peer-reviewer and board-certified physician. 
+REVIEW_PROMPT = """IMPORTANT: Never use bullet points, numbered lists, or any list formatting. 
+Write only in flowing prose paragraphs.
+You are a strict medical peer-reviewer and board-certified physician. 
 Audit the given AI-generated medical response for clinical accuracy, 
 safety, and alignment with current medical guidelines in comparison to the user's question.
 Only flag omissions that are directly relevant to the user's specific injury or condition. 
@@ -118,10 +129,10 @@ Provide a concise audit covering exactly these five points:
 Verify that the resistance vector actually targets the intended muscle group 
 through its proper anatomical range of motion. If the mechanics are physically impossible or target the wrong muscle, 
 flag it as a Factual Error.
-5. Corrected Version: Rewrite the response so it is clinically accurate, safe, and actionable. 
-Be direct, objective, and uncompromising on patient safety. Do not write any conversational intro."""
+5. Corrected Version: Rewrite the response so it is clinically accurate, safe, and actionable. """
 
-final_prompt = """You are an expert text-rewriter and communicator engine.
+FINAL_PROMPT = """IMPORTANT: Never use bullet points, numbered lists, or any list formatting. 
+Write only in flowing prose paragraphs.You are an expert text-rewriter and communicator engine.
 Your job is to take the medical advice provided and rewrite it to sound conversational, direct 
 and easy to understand. 
 Rules:
@@ -133,17 +144,17 @@ If the audit says there are no errors, rewrite the 'Original Advice'.
 Forbidden phrases: 'revised version', 'updated advice', 'let me rewrite', 'here is a correction', 
 'Hello', 'Sure thing', 'Great question', 'Of course', 'Absolutely', 
 'Happy [anything]', 'I understand', 'Engaging conversation!', 'Here is a more conversational version' or similar, 
-'Here's a rewritten version of the original advice:', 'Note:', "I've rewritten", 'according to the rules' 
-(Note: The original advice has been rewritten to meet the rules.)"""
+'Here's a rewritten version of the original advice:', 'Note:', "I've rewritten", 'according to the rules', 
+'(Note: The original advice has been rewritten to meet the rules.)', 'Let's get down to business!'"""
 
-messages = []
+messages = []  # chat history
 while True:
     user_input = input(">>")
-    if user_input.lower() == "exit":
+    if user_input.lower() == "exit":  # type exit to leave chat, for now
         break
     response_content = ""
+    # determines user intent before proceeding
     intent = classify_intent(user_input, messages[:-10])
-    print(intent)
     if intent in ("EXERCISE_INJURY", "PLAN_INJURY"):
         injured_muscle_id = extract_injured_muscle(user_input)
         retrieved = retrieve_exercises(
@@ -171,16 +182,19 @@ while True:
         ]
         continue
 
+    # below is the result of the SQL queries
     rag_context = f"Relevant exercises:\n\n{retrieved}"
-    # print(rag_context)
+
     initial_response = chat("medical-expert:latest",
-                            messages=[{"role": "system", "content": system_prompt}] +
-                            messages[-10:] +
-                            [{"role": "user", "content": f"{rag_context}\n\nUser question: {user_input}"}],
+                            # the system prompt
+                            messages=[{"role": "system", "content": SYSTEM_PROMPT}] +
+                            messages[-10:]  # context from the last 5 messages
+                            # the user query plus the SQL results
+                            + [{"role": "user", "content": f"{rag_context}\n\nUser question: {user_input}"}],
                             options={
-                                "temperature": 0.7,
-                                "num_predict": 8192,
-                                "num_ctx": 8192
+                                "temperature": 0.7,  # how creative the model can get -> 0.0 is static, 1.0 is unpredictable
+                                "num_predict": 8192,  # maximum number of tokens the model can generate in one response
+                                "num_ctx": 8192  # context window size, exceeding this causes the model to forget prior info
                             },
                             stream=False)
 
@@ -188,7 +202,7 @@ while True:
 
     double_check = chat("medical-expert:latest",
                         messages=[
-                            {"role": "system", "content": review_prompt},
+                            {"role": "system", "content": REVIEW_PROMPT},
                             {"role": "user", "content": (
                                 f"Original Question: {user_input}\n\nAI Response: {initial_text}")}
                         ],
@@ -203,7 +217,7 @@ while True:
 
     final_response = chat("llama3",
                           messages=[
-                              {"role": "system", "content": final_prompt},
+                              {"role": "system", "content": FINAL_PROMPT},
                               {"role": "user", "content": (
                                   f"Original Advice:\n{initial_text}\n\n"
                                   f"Review Audit:\n{audit_text}")}
@@ -213,14 +227,14 @@ while True:
                               "num_predict": 4096,
                               "num_ctx": 8192
                           },
-                          stream=True)
+                          stream=True)  # final response will stream as it is being generated
 
     print(f"Initial response: {initial_text}")
     print()
     print(f"Double check: {audit_text}")
     print()
 
-    print("\nMy response: ", end="")
+    print("\n>>>> ", end="")
     for chunk in final_response:
         if chunk.message:
             content = chunk.message.content
@@ -229,5 +243,6 @@ while True:
     print()
     messages += [
         {"role": "user", "content": user_input},
+        # adds the user query and subsequent LLM response to the chat history
         {"role": "assistant", "content": response_content}
     ]
