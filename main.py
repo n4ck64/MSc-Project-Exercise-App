@@ -22,11 +22,14 @@ app.add_middleware(
 
 class Message(BaseModel):
     content: str
+    image_path: str | None = None
 
 
 @app.post("/chat")
 async def chat_endpoint(message: Message):
-    # the pipeline logic runs here
+    """the pipeline logic runs here"""
+    if message.image_path:
+        return StreamingResponse(analyse_image(message.image_path, message.content), media_type="text/plain")
     return StreamingResponse(run_pipeline(message.content), media_type="text/plain")
 
 
@@ -37,13 +40,4 @@ async def upload_endpoint(file: UploadFile = File(...)):
     with open(temp_path, "wb") as f:
         f.write(contents)
 
-    if file.content_type.startswith("image"):
-        response = analyse_image(temp_path)
-    elif file.content_type.startswith("video"):
-        response = analyse_video(temp_path)
-    else:
-        return {"response": "Please upload an image or video file"}
-
-    os.remove(temp_path)
-
-    return {"response": response}
+    return {"file_path": temp_path}

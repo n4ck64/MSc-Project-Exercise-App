@@ -98,3 +98,14 @@ h1 {
     text-align: left;
     padding: 12px;
 }
+
+#image-preview {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    max-width: 60px;
+    max-height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+    margin-bottom: 5px;
+}

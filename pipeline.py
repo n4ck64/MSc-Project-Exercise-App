@@ -11,14 +11,16 @@ import psycopg2
 conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
 cur = conn.cursor()
 
+chat_history = []
 
-def classify_intent(user_input, messages):
+
+def classify_intent(user_input, chat_history):
     """Takes the user's initial query and classifies it in one of five categories:
     general exercise query, exercise query with an injury, making a general plan,
     making a general plan with an injury, or just chitchatting."""
 
     context = "\n".join([m["content"]
-                        for m in messages[-4:]])  # last 2 exchanges
+                        for m in chat_history[-4:]])  # last 2 exchanges
     response = chat("llama3", messages=[
         {"role": "system", "content": f"""You are a classifier. Output exactly one of these labels and nothing else:
     EXERCISE_GENERAL
@@ -74,7 +76,7 @@ def retrieve_exercises(query, top_k=3, injured_muscle_id=None):
     """Queries the database to retrieve the three most relevant exercises
     based on the user's input and the corresponding generated embedding"""
     rag_query = query if len(
-        messages) == 0 else messages[-1]["content"] + " " + query
+        chat_history) == 0 else chat_history[-1]["content"] + " " + query
     # if first message, the RAG uses the query to do its retrieval, else uses the query plus the previous message
     response = ollama.embed(model="nomic-embed-text", input=rag_query)
     embedding = response.embeddings[0]
@@ -147,18 +149,16 @@ Forbidden phrases: 'revised version', 'updated advice', 'let me rewrite', 'here 
 'Here's a rewritten version of the original advice:', 'Note:', "I've rewritten", 'according to the rules', 
 '(Note: The original advice has been rewritten to meet the rules.)', 'Let's get down to business!'"""
 
-messages = []  # chat history
-
 
 def run_pipeline(user_input):
     """The main driver behind the chatbot.
     Takes user input, clarifies intent, retrieves
     relevant exercises, reviews initial answer,
     and returns final response"""
-    global messages
+    global chat_history
     response_content = ""
     # determines user intent before proceeding
-    intent = classify_intent(user_input, messages[:-10])
+    intent = classify_intent(user_input, chat_history[:-10])
     if intent in ("EXERCISE_INJURY", "PLAN_INJURY"):
         injured_muscle_id = extract_injured_muscle(user_input)
         retrieved = retrieve_exercises(
@@ -171,7 +171,7 @@ def run_pipeline(user_input):
         retrieved = None  # skip RAG for regular chats
         response = chat("llama3", messages=[
             {"role": "system",
-                "content": "You are a helpful fitness assistant. Be conversational and brief."}] + messages[-10:]
+                "content": "You are a helpful fitness assistant. Be conversational and brief."}] + chat_history[-10:]
             + [{"role": "user", "content": user_input}
                ], stream=True)
 
@@ -180,7 +180,7 @@ def run_pipeline(user_input):
             response_content += token
             yield token
 
-        messages += [
+        chat_history += [
             {"role": "user", "content": user_input},
             {"role": "assistant", "content": response_content}
         ]
@@ -195,7 +195,8 @@ def run_pipeline(user_input):
     initial_response = chat("medical-expert:latest",
                             # the system prompt
                             messages=[{"role": "system", "content": SYSTEM_PROMPT}] +
-                            messages[-10:]  # context from the last 5 messages
+                            # context from the last 5 messages
+                            chat_history[-10:]
                             # the user query plus the SQL results
                             + [{"role": "user", "content": f"{rag_context}\n\nUser question: {user_input}"}],
                             options={
@@ -243,7 +244,7 @@ def run_pipeline(user_input):
         response_content += token
         yield token
 
-    messages += [
+    chat_history += [
         {"role": "user", "content": user_input},
         # adds the user query and subsequent LLM response to the chat history
         {"role": "assistant", "content": response_content}

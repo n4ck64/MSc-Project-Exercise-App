@@ -2,6 +2,7 @@ const sendBtn = document.getElementById("send-btn") // pressing the send button
 const userInput = document.getElementById("user-input") // the user's message, as it would appear in the chat window
 const chatWindow = document.getElementById("chat-window") // chat window, self explanatory
 const mediaUpload = document.getElementById("media-upload") // the button to upload images/videos
+let pendingImage = null
 
 sendBtn.addEventListener("click", function () {
     const wrapper = document.createElement("div")
@@ -19,6 +20,17 @@ sendBtn.addEventListener("click", function () {
     loadingDiv.innerText = ". . ."
     loadingDiv.id = "loading"
 
+    if (pendingImage) {
+        const wrapper = document.createElement("div")
+        wrapper.style.textAlign = "right"
+        const img = document.createElement("img")
+        img.src = document.getElementById("image-preview").src // what actually appears on the browser
+        img.style.maxWidth = "200px"
+        img.style.borderRadius = "10px"
+        wrapper.appendChild(img)
+        chatWindow.appendChild(wrapper)
+        document.getElementById("image-preview").style.display = "none"
+    }
     wrapper.appendChild(userDiv) // groups the user's messager
     chatWindow.appendChild(wrapper) // adds user's message to chat
     chatWindow.appendChild(loadingDiv) // shows loading indicator while bot thinks
@@ -28,9 +40,10 @@ sendBtn.addEventListener("click", function () {
     fetch("http://localhost:8000/chat", { // this is how it is sent to the backend via FastAPI
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: message })
+        body: JSON.stringify({ content: message, image_path: pendingImage })
     })
         .then(function (response) {
+            pendingImage = null
             const reader = response.body.getReader() // extracts chunks from backend response
             const decoder = new TextDecoder() // streaming gives raw bytes, this converts it to a readable string
             const div = document.createElement("div") // this is the division to which the stream chunks get added for the bot response
@@ -44,7 +57,8 @@ sendBtn.addEventListener("click", function () {
                 reader.read().then(function ({ done, value }) {
                     if (done) return // once streaming has ended, stops the function
                     const token = decoder.decode(value)
-                    if (token === "Thinking..." || token === "Reviewing...") {
+                    console.log(token)
+                    if (token === "Thinking..." || token === "Reviewing..." || token === "Analysing..." || token == "Uploading...") {
                         div.innerText = token
                         div.classList.add("pulsing")
                     } else {
@@ -65,7 +79,7 @@ sendBtn.addEventListener("click", function () {
 })
 
 
-userInput.addEventListener("keydown", function (event) { // allows pressing "enter" instead of clicking button
+userInput.addEventListener("keydown", function (event) { // allows pressing "Enter" instead of clicking button
     if (event.key === "Enter") {
         sendBtn.click()
     }
@@ -77,19 +91,14 @@ mediaUpload.addEventListener("change", function () { // sends uploads to backend
     const formData = new FormData() // FormData is an object for sending files over HTTP, which unlike JSPN can handle binary data like images and videos
     formData.append("file", file) // must match parameter in upload_endpoint for FastAPI
 
-    const reader = new FileReader() // creates a thumbnail in the chat window
+    const reader = new FileReader() // uploads the image in the chat window
     reader.onload = function (e) {
-        const wrapper = document.createElement("div")
-        wrapper.style.textAlign = "right"
-        const img = document.createElement("img")
-        img.src = e.target.result // what actually appears on the browser
-        img.style.maxWidth = "200px"
-        img.style.borderRadius = "10px"
-        wrapper.appendChild(img)
-        chatWindow.appendChild(wrapper)
+        const preview = document.getElementById("image-preview")
+        preview.src = e.target.result
+        preview.style.display = "block"
 
         const loadingDiv = document.createElement("div") // loading indicator shown while backend processes media
-        loadingDiv.innerText = "Analysing..."
+        loadingDiv.innerText = "Uploading..."
         loadingDiv.id = "loading"
         chatWindow.appendChild(loadingDiv)
     }
@@ -107,10 +116,7 @@ mediaUpload.addEventListener("change", function () { // sends uploads to backend
         })
         .then(function (data) {
             document.getElementById("loading").remove()
-            const div = document.createElement("div")
-            div.innerText = data.response
-            div.classList.add("bot-message")
-            chatWindow.appendChild(div) // displays in chat like a normal message
+            pendingImage = data.file_path
         })
 
 })

@@ -11,33 +11,39 @@ from PIL import Image
 import numpy as np
 import mediapipe as mp
 import cv2
-from pipeline import messages  # chat history
+import os
+from pipeline import chat_history  # chat history
 
 
-def analyse_image(image_path):
+def analyse_image(image_path, user_input):
     """Takes the images of exercise or people and gives feedback based on user query"""
-
+    global chat_history
     with open(image_path, "rb") as f:
-        image_path = f.read()
+        image_data = f.read()
 
+    response_content = ""
+    yield "Analysing..."
     response = chat("llava:13b", messages=[
         {"role": "user",
-         "content": """You are a professional fitness coach. Look at this image and determine whether it shows the user exercising or just standing/posing.
-         Speak directly to the person in the image using 'you' and 'your'.
-        If the user is exercising:
-        1. Joint positions (list each visible joint)
-        2. Form issues and injury risks
-        3. Specific corrections with cues a coach would use
-        If the user is not exercising:
-        1. Body composition assessment (estimated muscle mass, body fat, posture)
-        2. Specific strengths you can see
-        3. Top 3 areas to improve with concrete advice
-        Only describe what is clearly visible. Do not infer or assume anything not directly visible in the image.
+         "content": f"""You are a professional fitness coach. You are to judge the following image based on the user's
+        instruction {user_input}. You are speaking to the person in the photo, always refer by "you" or "your.
         Make your best assessment based on what you can see. Do not say "without more context" or "it's not possible", 
         give your best judgment as a coach would.""",
-         "images": [image_path]}
-    ])
-    return response.message.content.strip()
+         "images": [image_data]}
+    ], stream=True)
+
+    for chunk in response:
+        token = chunk.message.content
+        response_content += token
+        yield token
+
+    os.remove(image_path)  # deletes the temp file
+
+    chat_history += [
+        {"role": "user", "content": user_input},
+        # adds the user query and subsequent LLM response to the chat history
+        {"role": "assistant", "content": response_content}
+    ]
 
 
 # def run_vision(media):
