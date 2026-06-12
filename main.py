@@ -3,6 +3,7 @@ This is the brain of the app,
 connecting backend with frontend.
 """
 from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pipeline import run_pipeline
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,9 +26,8 @@ class Message(BaseModel):
 
 @app.post("/chat")
 async def chat_endpoint(message: Message):
-    # your pipeline logic here
-    response = run_pipeline(message.content)
-    return {"response": response}
+    # the pipeline logic runs here
+    return StreamingResponse(run_pipeline(message.content), media_type="text/plain")
 
 
 @app.post("/upload")

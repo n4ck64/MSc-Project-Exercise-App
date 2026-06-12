@@ -173,17 +173,25 @@ def run_pipeline(user_input):
             {"role": "system",
                 "content": "You are a helpful fitness assistant. Be conversational and brief."}] + messages[-10:]
             + [{"role": "user", "content": user_input}
-               ], stream=False)
-        answer = response.message.content
-        response_content += response.message.content
+               ], stream=True)
+
+        for chunk in response:
+            token = chunk.message.content
+            response_content += token
+            yield token
+
         messages += [
             {"role": "user", "content": user_input},
             {"role": "assistant", "content": response_content}
         ]
-        return answer
+
+        return
+
     # below is the result of the SQL queries
     rag_context = f"Relevant exercises:\n\n{retrieved}"
 
+    # a medical LLM responds given the user query and the SQL output
+    yield "Thinking..."
     initial_response = chat("medical-expert:latest",
                             # the system prompt
                             messages=[{"role": "system", "content": SYSTEM_PROMPT}] +
@@ -199,6 +207,8 @@ def run_pipeline(user_input):
 
     initial_text = initial_response.message.content
 
+    # the same LLM with a different system prompt reviews the above response under a list of criteria
+    yield "Reviewing..."
     double_check = chat("medical-expert:latest",
                         messages=[
                             {"role": "system", "content": REVIEW_PROMPT},
@@ -226,20 +236,15 @@ def run_pipeline(user_input):
                               "num_predict": 4096,
                               "num_ctx": 8192
                           },
-                          stream=False)  # final response will stream as it is being generated
+                          stream=True)  # final response will stream as it is being generated
 
-    print(f"Intent: {intent}")
-    print()
-    print(f"Initial response: {initial_text}")
-    print()
-    print(f"Double check: {audit_text}")
-    print()
-    response_content += final_response.message.content
-    answer = final_response.message.content
+    for chunk in final_response:
+        token = chunk.message.content
+        response_content += token
+        yield token
 
     messages += [
         {"role": "user", "content": user_input},
         # adds the user query and subsequent LLM response to the chat history
         {"role": "assistant", "content": response_content}
     ]
-    return answer
