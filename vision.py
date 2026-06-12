@@ -11,15 +11,16 @@ from PIL import Image
 import numpy as np
 import mediapipe as mp
 import cv2
+from pipeline import messages  # chat history
 
 
 def analyse_image(image_path):
-    """Takes the images of exercise or people and gives feedback"""
+    """Takes the images of exercise or people and gives feedback based on user query"""
 
     with open(image_path, "rb") as f:
         image_path = f.read()
 
-    response = chat("llava", messages=[
+    response = chat("llava:13b", messages=[
         {"role": "user",
          "content": """You are a professional fitness coach. Look at this image and determine whether it shows the user exercising or just standing/posing.
          Speak directly to the person in the image using 'you' and 'your'.

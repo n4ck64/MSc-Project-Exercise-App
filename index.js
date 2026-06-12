@@ -72,16 +72,31 @@ userInput.addEventListener("keydown", function (event) { // allows pressing "ent
 })
 
 mediaUpload.addEventListener("change", function () { // sends uploads to backend
-    const file = mediaUpload.files[0]
+    const file = mediaUpload.files[0] // files is a list of selected files, [0] grabs the first and only one
 
-    const formData = new FormData()
-    formData.append("file", file)
+    const formData = new FormData() // FormData is an object for sending files over HTTP, which unlike JSPN can handle binary data like images and videos
+    formData.append("file", file) // must match parameter in upload_endpoint for FastAPI
 
-    const loadingDiv = document.createElement("div")
-    loadingDiv.innerText = ". . ."
-    loadingDiv.id = "loading"
+    const reader = new FileReader() // creates a thumbnail in the chat window
+    reader.onload = function (e) {
+        const wrapper = document.createElement("div")
+        wrapper.style.textAlign = "right"
+        const img = document.createElement("img")
+        img.src = e.target.result // what actually appears on the browser
+        img.style.maxWidth = "200px"
+        img.style.borderRadius = "10px"
+        wrapper.appendChild(img)
+        chatWindow.appendChild(wrapper)
 
-    chatWindow.appendChild(loadingDiv)
+        const loadingDiv = document.createElement("div") // loading indicator shown while backend processes media
+        loadingDiv.innerText = "Analysing..."
+        loadingDiv.id = "loading"
+        chatWindow.appendChild(loadingDiv)
+    }
+
+    reader.readAsDataURL(file) // reads the image and converts it to a URL, once it is loaded, it gets fired on the reader.onload function
+
+
 
     fetch("http://localhost:8000/upload", {
         method: "POST",
@@ -91,12 +106,11 @@ mediaUpload.addEventListener("change", function () { // sends uploads to backend
             return response.json()
         })
         .then(function (data) {
-            console.log(data)
             document.getElementById("loading").remove()
             const div = document.createElement("div")
             div.innerText = data.response
             div.classList.add("bot-message")
-            chatWindow.appendChild(div)
+            chatWindow.appendChild(div) // displays in chat like a normal message
         })
 
 })
