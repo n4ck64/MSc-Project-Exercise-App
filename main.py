@@ -2,10 +2,12 @@
 This is the brain of the app,
 connecting backend with frontend.
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from pipeline import run_pipeline
 from fastapi.middleware.cors import CORSMiddleware
+from vision import analyse_image, analyse_video
+import os
 
 app = FastAPI()
 
@@ -25,4 +27,23 @@ class Message(BaseModel):
 async def chat_endpoint(message: Message):
     # your pipeline logic here
     response = run_pipeline(message.content)
+    return {"response": response}
+
+
+@app.post("/upload")
+async def upload_endpoint(file: UploadFile = File(...)):
+    contents = await file.read()
+    temp_path = f"/tmp/temp_{file.filename}"
+    with open(temp_path, "wb") as f:
+        f.write(contents)
+
+    if file.content_type.startswith("image"):
+        response = analyse_image(temp_path)
+    elif file.content_type.startswith("video"):
+        response = analyse_video(temp_path)
+    else:
+        return {"response": "Please upload an image or video file"}
+
+    os.remove(temp_path)
+
     return {"response": response}

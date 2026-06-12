@@ -32,11 +32,11 @@ def classify_intent(user_input, messages):
     {context}
 
     Examples:
-    "what exercises can I do?" → EXERCISE_GENERAL
-    "I hurt my knee, what can I do?" → EXERCISE_INJURY
-    "make me a workout plan" → PLAN_GENERAL
-    "make me a plan, I have a bad back" → PLAN_INJURY
-    "hi how are you" → CHITCHAT"""},
+    "what exercises can I do?" -> EXERCISE_GENERAL
+    "I hurt my knee, what can I do?" -> EXERCISE_INJURY
+    "make me a workout plan" -> PLAN_GENERAL
+    "make me a plan, I have a bad back" -> PLAN_INJURY
+    "hi how are you" -> CHITCHAT"""},
         {"role": "user", "content": user_input}
     ])
     return response.message.content.strip()
