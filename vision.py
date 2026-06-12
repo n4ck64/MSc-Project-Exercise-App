@@ -17,12 +17,23 @@ def analyse_image(image_path):
     """Takes the images of exercise or people and gives feedback"""
 
     with open(image_path, "rb") as f:
-        image_data = f.read()
+        image_path = f.read()
 
-    response = chat("moondream", messages=[
+    response = chat("llava", messages=[
         {"role": "user",
-         "content": """The image will be either someone exercising, or just someone. If it is someone exercising, describe the position
-        of all visible joints and any form issues you notice. If it is simnply a person, tell them where they can improve upon, fitness wise""",
+         "content": """You are a professional fitness coach. Look at this image and determine whether it shows the user exercising or just standing/posing.
+         Speak directly to the person in the image using 'you' and 'your'.
+        If the user is exercising:
+        1. Joint positions (list each visible joint)
+        2. Form issues and injury risks
+        3. Specific corrections with cues a coach would use
+        If the user is not exercising:
+        1. Body composition assessment (estimated muscle mass, body fat, posture)
+        2. Specific strengths you can see
+        3. Top 3 areas to improve with concrete advice
+        Only describe what is clearly visible. Do not infer or assume anything not directly visible in the image.
+        Make your best assessment based on what you can see. Do not say "without more context" or "it's not possible", 
+        give your best judgment as a coach would.""",
          "images": [image_path]}
     ])
     return response.message.content.strip()
