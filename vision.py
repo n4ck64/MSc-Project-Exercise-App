@@ -5,7 +5,6 @@ It gives feedback on physiques, form analysis,
 and advice based on local LLMs.
 """
 from ollama import chat
-import ollama
 import mediapipe as mp
 import cv2
 import os

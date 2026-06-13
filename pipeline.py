@@ -141,6 +141,12 @@ def run_pipeline(user_input):
     Takes user input, clarifies intent, retrieves
     relevant exercises, reviews initial answer,
     and returns final response."""
+
+    if user_input.strip().lower() == "/clear":
+        Memory.clear()
+        yield "Chat history cleared."
+        return
+
     response_content = ""
     # determines user intent before proceeding
     intent = classify_intent(user_input)
@@ -251,7 +257,7 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
         Keep it concise, 2-3 sentences max."""}, {"role": "user", "content":
                                                   f"Coordinates: {video_summary}\nUser context: {user_input}"}],
                           options={
-            "temperature": 0.7,
+            "temperature": 0.0,
             "num_predict": 8192,
             "num_ctx": 8192
         },
@@ -263,8 +269,15 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
         yield f"CHOICES:{probable_exercises[0]},{probable_exercises[1]},{probable_exercises[2]}"
     if video_choice:
         exercise_description = retrieve_exercise_description(user_input)
-        yield from run_pipeline(f"""This is how the movement is done: {Memory.video_summary},
-        this is the exercise: {user_input},
-        this is how it should be done {exercise_description}, 
-        rate my form""")
+        yield "Thinking..."
+        response = chat("medical-expert:latest", messages=[
+            {"role": "system", "content":
+             "You are a fitness coach analysing my exercise form. Be specific and direct."},
+            {"role": "user", "content": f"""I am performing: {user_input}\n
+            Correct form reference: {exercise_description}\n
+            What was observed: {Memory.video_summary}\n
+            Rate my form and give specific corrections."""}
+        ], stream=True)
+        for chunk in response:
+            yield chunk.message.content
         Memory.reset_video()

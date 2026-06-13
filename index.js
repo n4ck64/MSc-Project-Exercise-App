@@ -23,15 +23,24 @@ sendBtn.addEventListener("click", function () {
     loadingDiv.id = "loading"
 
     if (pendingImage) {
-        const wrapper = document.createElement("div")
-        wrapper.style.textAlign = "right"
-        const img = document.createElement("img")
-        img.src = document.getElementById("image-preview").src // what actually appears on the browser
-        img.style.maxWidth = "200px"
-        img.style.borderRadius = "10px"
-        wrapper.appendChild(img)
-        chatWindow.appendChild(wrapper)
-        document.getElementById("image-preview").style.display = "none"
+        const imgWrapper = document.createElement("div")
+        imgWrapper.style.textAlign = "right"
+        if (pendingFileType === "video") {
+            const vid = document.createElement("video")
+            vid.src = document.getElementById("video-preview").src // what actually appears on the browser
+            vid.style.maxWidth = "200px"
+            vid.controls = true
+            imgWrapper.appendChild(vid)
+            document.getElementById("video-preview").style.display = "none"
+        } else {
+            const img = document.createElement("img")
+            img.src = document.getElementById("image-preview").src
+            img.style.maxWidth = "200px"
+            img.style.borderRadius = "10px"
+            imgWrapper.appendChild(img)
+            document.getElementById("image-preview").style.display = "none"
+        }
+        chatWindow.appendChild(imgWrapper)
     }
     wrapper.appendChild(userDiv) // groups the user's messager
     chatWindow.appendChild(wrapper) // adds user's message to chat
@@ -66,17 +75,29 @@ sendBtn.addEventListener("click", function () {
                         div.innerText = token
                         div.classList.add("pulsing")
                     } else if (token.startsWith("CHOICES:")) {
+                        div.innerText = ""
                         const names = token.replace("CHOICES:", "").split(",")
                         names.forEach(function (name) {
                             const button = document.createElement("button")
+                            button.classList.add("choice-btn")
                             button.innerText = name
                             chatWindow.appendChild(button)
                             button.addEventListener("click", function () {
                                 pendingVideoChoice = name
                                 userInput.value = name
                                 sendBtn.click()
+                                document.querySelectorAll(".choice-btn").forEach(b => b.remove())
                             })
                         })
+                        const noneBtn = document.createElement("button")
+                        noneBtn.innerText = "None of the above"
+                        noneBtn.classList.add("choice-btn")
+                        noneBtn.addEventListener("click", function () {
+                            pendingVideoChoice = "manual"
+                            sendBtn.click()
+                            document.querySelectorAll(".choice-btn").forEach(b => b.remove())
+                        })
+                        chatWindow.appendChild(noneBtn)
                     }
                     else {
                         if (isStatus) {
@@ -110,10 +131,15 @@ mediaUpload.addEventListener("change", function () { // sends uploads to backend
 
     const reader = new FileReader() // uploads the image in the chat window
     reader.onload = function (e) {
-        const preview = document.getElementById("image-preview")
-        preview.src = e.target.result
-        preview.style.display = "block"
-
+        if (file.type.startsWith("video")) {
+            const preview = document.getElementById("video-preview")
+            preview.src = e.target.result
+            preview.style.display = "block"
+        } else {
+            const preview = document.getElementById("image-preview")
+            preview.src = e.target.result
+            preview.style.display = "block"
+        }
         const loadingDiv = document.createElement("div") // loading indicator shown while backend processes media
         loadingDiv.innerText = "Uploading..."
         loadingDiv.id = "loading"
