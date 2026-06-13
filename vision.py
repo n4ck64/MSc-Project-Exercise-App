@@ -6,18 +6,14 @@ and advice based on local LLMs.
 """
 from ollama import chat
 import ollama
-import psycopg2
-from PIL import Image
-import numpy as np
 import mediapipe as mp
 import cv2
 import os
-from pipeline import chat_history  # chat history
+from pipeline import Memory
 
 
 def analyse_image(image_path, user_input):
-    """Takes the images of exercise or people and gives feedback based on user query"""
-    global chat_history
+    """Takes uploaded images and gives feedback based on user query"""
     with open(image_path, "rb") as f:
         image_data = f.read()
 
@@ -28,7 +24,7 @@ def analyse_image(image_path, user_input):
          "content": f"""You are a professional fitness coach. You are to judge the following image based on the user's
         instruction {user_input}. You are speaking to the person in the photo, always refer by "you" or "your.
         Make your best assessment based on what you can see. Do not say "without more context" or "it's not possible", 
-        give your best judgment as a coach would.""",
+        give your best judgment as a coach would. Do not refer to yourself or your role.""",
          "images": [image_data]}
     ], stream=True)
 
@@ -39,14 +35,12 @@ def analyse_image(image_path, user_input):
 
     os.remove(image_path)  # deletes the temp file
 
-    chat_history += [
+    Memory.chat_history += [
         {"role": "user", "content": user_input},
         # adds the user query and subsequent LLM response to the chat history
         {"role": "assistant", "content": response_content}
     ]
 
-
-# def run_vision(media):
 
 def analyse_video(video):
     """Takes video input, extracts every 30th frame,
@@ -108,4 +102,7 @@ def analyse_video(video):
         summary += f"Frame {i}:\n"
         for joint, landmark in frame.items():
             summary += f" {joint}: x={landmark.x:.2f}, y={landmark.y:.2f}, visibility = {landmark.visibility:.2f}\n"
+
+    os.remove(video)
+
     return summary

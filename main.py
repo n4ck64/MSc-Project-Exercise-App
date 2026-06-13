@@ -5,10 +5,9 @@ connecting backend with frontend.
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from pipeline import run_pipeline
+from pipeline import run_pipeline, run_video_pipeline
 from fastapi.middleware.cors import CORSMiddleware
 from vision import analyse_image, analyse_video
-import os
 
 app = FastAPI()
 
@@ -21,20 +20,39 @@ app.add_middleware(
 
 
 class Message(BaseModel):
+    """defines the contents of the JSON body FastAPI expects when it receives a POST request"""
     content: str
     image_path: str | None = None
+    file_type: str | None = None
+    video_choice: str | None = None
 
 
 @app.post("/chat")
 async def chat_endpoint(message: Message):
-    """the pipeline logic runs here"""
+    """checks file type, if image it analyses it and sends a response to frontend,
+        if video, creates a summary that will be fed to the pipeline
+        else simply runs the pipeline."""
+    if message.video_choice:
+        # if a choice is made, returns the chosen exercise
+        return StreamingResponse(run_video_pipeline(message.content,
+                                                    None, video_choice=message.video_choice), media_type="text/plain")
+
     if message.image_path:
+        if message.file_type == "video":
+            # returns a summary of the video to be fed to LLM
+            video_summary = analyse_video(message.image_path)
+            return StreamingResponse(run_video_pipeline(message.content, video_summary), media_type="text/plain")
+
+        # if it is not a video, the image gets analysed and the response streamed
         return StreamingResponse(analyse_image(message.image_path, message.content), media_type="text/plain")
+
+    # if no media is present, regular pipeline runs
     return StreamingResponse(run_pipeline(message.content), media_type="text/plain")
 
 
 @app.post("/upload")
 async def upload_endpoint(file: UploadFile = File(...)):
+    """uploads uploaded file to pipeline"""
     contents = await file.read()
     temp_path = f"/tmp/temp_{file.filename}"
     with open(temp_path, "wb") as f:

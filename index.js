@@ -3,6 +3,8 @@ const userInput = document.getElementById("user-input") // the user's message, a
 const chatWindow = document.getElementById("chat-window") // chat window, self explanatory
 const mediaUpload = document.getElementById("media-upload") // the button to upload images/videos
 let pendingImage = null
+let pendingVideoChoice = null
+let pendingFileType = null
 
 sendBtn.addEventListener("click", function () {
     const wrapper = document.createElement("div")
@@ -40,10 +42,12 @@ sendBtn.addEventListener("click", function () {
     fetch("http://localhost:8000/chat", { // this is how it is sent to the backend via FastAPI
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: message, image_path: pendingImage })
+        body: JSON.stringify({ content: message, image_path: pendingImage, file_type: pendingFileType, video_choice: pendingVideoChoice })
     })
         .then(function (response) {
             pendingImage = null
+            pendingFileType = null
+            pendingVideoChoice = null
             const reader = response.body.getReader() // extracts chunks from backend response
             const decoder = new TextDecoder() // streaming gives raw bytes, this converts it to a readable string
             const div = document.createElement("div") // this is the division to which the stream chunks get added for the bot response
@@ -58,10 +62,23 @@ sendBtn.addEventListener("click", function () {
                     if (done) return // once streaming has ended, stops the function
                     const token = decoder.decode(value)
                     console.log(token)
-                    if (token === "Thinking..." || token === "Reviewing..." || token === "Analysing..." || token == "Uploading...") {
+                    if (token === "Thinking..." || token === "Reviewing..." || token === "Analysing..." || token == "Processing...") {
                         div.innerText = token
                         div.classList.add("pulsing")
-                    } else {
+                    } else if (token.startsWith("CHOICES:")) {
+                        const names = token.replace("CHOICES:", "").split(",")
+                        names.forEach(function (name) {
+                            const button = document.createElement("button")
+                            button.innerText = name
+                            chatWindow.appendChild(button)
+                            button.addEventListener("click", function () {
+                                pendingVideoChoice = name
+                                userInput.value = name
+                                sendBtn.click()
+                            })
+                        })
+                    }
+                    else {
                         if (isStatus) {
                             div.innerText = ""
                             div.classList.remove("pulsing")
@@ -117,6 +134,7 @@ mediaUpload.addEventListener("change", function () { // sends uploads to backend
         .then(function (data) {
             document.getElementById("loading").remove()
             pendingImage = data.file_path
+            pendingFileType = file.type.startsWith("video") ? "video" : "image"
         })
 
 })
