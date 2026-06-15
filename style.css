@@ -6,9 +6,12 @@ h1 {
     color: orange;
     font-size: 64px;
     font-family: 'Franklin Gothic Medium';
-    text-align: center;
-    padding: 10px;
+    text-align: left;
+    padding: 20px;
     background-color: rgba(255, 239, 69, 0.397);
+    margin: auto;
+    width: 1200px;
+    border-radius: 0 0 50px 50px;
 }
 
 @keyframes pulse {
@@ -32,49 +35,85 @@ h1 {
     animation: pulse 1s infinite;
 }
 
-#chat-window {
+#layout {
+    display: flex;
     width: 1200px;
     margin: auto;
+}
+
+
+
+#chat-window {
+    flex: 1;
+    margin-left: 16px;
     margin-bottom: 80px;
     overflow-y: auto;
+    padding: 10px;
 
 }
 
+#user-input:focus {
+    outline: none;
+}
+
+#user-input::placeholder {
+    color: grey;
+    font-style: italic;
+    font-size: 16px;
+    opacity: 50%;
+}
+
 #input-area {
-    background-color: orange;
+    background-color: rgb(255, 188, 65);
     padding: 16px;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     position: fixed;
     bottom: 0;
     left: 50%;
     transform: translateX(-50%);
+    border-radius: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin: 10px;
 }
 
 #send-btn {
-    font-size: 18px;
+    font-size: 20px;
     color: grey;
-    border: 1px solid grey;
-    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 20px;
     cursor: pointer;
+    width: 40px;
+    height: 35px;
+    background-color: lightgrey;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-#media-upload {
-    font-size: 18px;
+label[for="media-upload"] {
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: grey;
-    border: 1px solid grey;
-    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 20px;
     cursor: pointer;
+    width: 40px;
+    height: 35px;
+    background-color: lightgrey;
 }
 
 #user-input {
     font-size: 18px;
     color: grey;
-    background-color: palegoldenrod;
+    background-color: rgb(255, 255, 206);
     width: 600px;
     margin: auto;
-    border: 0.5px solid grey;
-    padding: 4px;
+    border: none;
+    padding: 8px;
     border-radius: 8px;
 }
 
@@ -84,7 +123,7 @@ h1 {
     background-color: rgb(255, 255, 206);
     display: inline-block;
     text-align: right;
-    border: 1px solid rgb(189, 189, 189);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     border-radius: 8px;
     padding: 10px;
     margin: 5px;

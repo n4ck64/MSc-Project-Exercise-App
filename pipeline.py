@@ -28,6 +28,11 @@ class Memory:
         """wipes memory of any video summary"""
         cls.video_summary = None
 
+    @classmethod
+    def show_history(cls):
+        """shows full chat history, used for debugging"""
+        return Memory.chat_history
+
 
 def classify_intent(user_input):
     """Takes the user's initial query and classifies it in one of five categories:
@@ -143,6 +148,7 @@ def run_pipeline(user_input):
     and returns final response."""
 
     if user_input.strip().lower() == "/clear":
+        # wipe the history for debugging
         Memory.clear()
         yield "Chat history cleared."
         return
@@ -150,6 +156,7 @@ def run_pipeline(user_input):
     response_content = ""
     # determines user intent before proceeding
     intent = classify_intent(user_input)
+
     if intent in ("EXERCISE_INJURY", "PLAN_INJURY"):
         injured_muscle_id = extract_injured_muscle(user_input)
         retrieved = retrieve_exercises(
@@ -177,6 +184,7 @@ def run_pipeline(user_input):
         ]
 
         return
+
     # below is the result of the SQL queries
     rag_context = f"Relevant exercises:\n\n{retrieved}"
 

@@ -15,14 +15,15 @@
 
 <body>
     <h1>ReFit</h1>
-
-    <div id="chat-window">
-
+    <div id="layout">
+        <div id="sidebar"></div>
+        <div id="chat-window">
+        </div>
     </div>
     <div id="input-area">
-        <input id="user-input" placeholder="  Ask something!">
-        <button id="send-btn"><i class="fa-solid fa-paper-plane"></i></button>
-        <label for="media-upload">
+        <input id="user-input" autocomplete="off" placeholder=" Ask something!">
+        <button id="send-btn" title="Send message"><i class="fa-solid fa-paper-plane"></i></button>
+        <label for="media-upload" title="Attach file">
             <i class="fa-solid fa-paperclip"></i>
         </label>
         <input type="file" id="media-upload" accept="image/*, video/*" style="display:none">
