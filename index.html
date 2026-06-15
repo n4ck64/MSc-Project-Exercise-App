@@ -16,20 +16,28 @@
 <body>
     <h1>ReFit</h1>
     <div id="layout">
-        <div id="sidebar"></div>
-        <div id="chat-window">
+        <div id="sidebar">
+            <div class="sidebar-tab">Exercises</div>
+            <div class="sidebar-tab">Plans</div>
+            <div class="sidebar-tab">Chat History</div>
+            <div class="sidebar-tab">Settings</div>
         </div>
+        <div id="chat-window">
+            <div id="input-area">
+                <input id="user-input" autocomplete="off" placeholder=" Ask something!">
+                <button id="send-btn" title="Send message"><i class="fa-solid fa-paper-plane"></i></button>
+                <label for="media-upload" title="Attach file">
+                    <i class="fa-solid fa-paperclip"></i>
+                </label>
+                <input type="file" id="media-upload" accept="image/*, video/*" style="display:none">
+                <img id="image-preview" style="display:none">
+                <video id="video-preview" controls style="display:none"></video>
+            </div>
+        </div>
+        <img id="user-avatar" src="chad.png">
+
     </div>
-    <div id="input-area">
-        <input id="user-input" autocomplete="off" placeholder=" Ask something!">
-        <button id="send-btn" title="Send message"><i class="fa-solid fa-paper-plane"></i></button>
-        <label for="media-upload" title="Attach file">
-            <i class="fa-solid fa-paperclip"></i>
-        </label>
-        <input type="file" id="media-upload" accept="image/*, video/*" style="display:none">
-        <img id="image-preview" style="display:none">
-        <video id="video-preview" controls style="display:none"></video>
-    </div>
+
     <script src="index.js"></script>
 </body>
 
