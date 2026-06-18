@@ -5,144 +5,10 @@ and a three-model reponse pipeline (medical answerer, medical reviewer,
 conversational rewriter)
 """
 from ollama import chat
-import ollama
-import psycopg2
 from prompts import *
-
-conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
-cur = conn.cursor()
-
-
-class Memory:
-    """Keeps track of global chat history and any video summaries"""
-    chat_history = []
-    video_summary = None
-
-    @classmethod
-    def clear(cls):
-        """cleans all chat history for current session"""
-        cls.chat_history = []
-
-    @classmethod
-    def reset_video(cls):
-        """wipes memory of any video summary"""
-        cls.video_summary = None
-
-    @classmethod
-    def show_history(cls):
-        """shows full chat history, used for debugging"""
-        return Memory.chat_history
-
-
-def classify_intent(user_input):
-    """Takes the user's initial query and classifies it in one of five categories:
-    general exercise query, exercise query with an injury, making a general plan,
-    making a general plan with an injury, or just chitchatting."""
-
-    response = chat("llama3", messages=[
-        {"role": "system", "content": f"""You are a classifier. 
-        Output exactly one of these labels and nothing else:
-        EXERCISE_GENERAL
-        EXERCISE_INJURY
-        PLAN_GENERAL
-        PLAN_INJURY
-        NUTRITION
-        NUTRITION_PLAN
-        CHITCHAT
-
-        No explanation. No punctuation. No other text. Just the label.
-        Previous conversation:
-        {Memory.chat_history[-4:]} 
-
-        Examples:
-        "what exercises can I do?" -> EXERCISE_GENERAL
-        "I hurt my knee, what can I do?" -> EXERCISE_INJURY
-        "make me a workout plan" -> PLAN_GENERAL
-        "make me a plan, I have a bad back" -> PLAN_INJURY
-        "hi how are you" -> CHITCHAT
-        "what foods are rich in protein? -> NUTRITION
-        "I want to bulk in a healthy way, what do you recommend? -> NUTRITION_PLAN"""},
-        {"role": "user", "content": user_input}
-    ])
-    return response.message.content.strip()
-
-
-def extract_injured_muscle(user_input):
-    """Takes user input and if an injury is mentioned, 
-    specifies which muscle is the injured one"""
-
-    response = chat("llama3", messages=[
-        {"role": "system", "content": EXTRACTION_PROMPT},
-        {"role": "user", "content": user_input}
-    ])
-    # result should be part of the list, if not return None
-    result = response.message.content.strip()
-    return int(result) if result.isdigit() else None
-
-
-def retrieve_exercises(query, top_k=3, injured_muscle_id=None):
-    """Queries the database to retrieve the three most relevant exercises
-    based on the user's input and the corresponding generated embedding"""
-    rag_query = query if len(
-        Memory.chat_history) == 0 else Memory.chat_history[-1]["content"] + " " + query
-    # if first message, the RAG uses the query to do its retrieval, else uses the query plus the previous message
-    response = ollama.embed(model="nomic-embed-text", input=rag_query)
-    embedding = response.embeddings[0]
-    if injured_muscle_id:
-        cur.execute("""
-                    SELECT exercise_name, description, type, difficulty, equipment
-                    FROM exercises
-                    WHERE exercise_id NOT IN (
-                        SELECT exercise_id FROM muscles_exercised WHERE muscle_id = %s
-                        )
-                    ORDER BY embedding <=> %s::vector
-                    LIMIT %s
-                    """, (injured_muscle_id, embedding, top_k))
-    else:
-        cur.execute("""
-                    SELECT exercise_name, description, type, difficulty, equipment
-                    FROM exercises
-                    ORDER BY embedding <=> %s::vector
-                    LIMIT %s
-                    """, (embedding, top_k))
-
-    rows = cur.fetchall()
-    results = []
-    for name, description, type_, difficulty, equipment in rows:
-        results.append(
-            f"Exercise: {name}\nType: {type_} | Difficulty: {difficulty} | Equipment: {equipment}\nDescription: {description}")
-    return "\n\n".join(results)
-
-
-def retrieve_exercise_names(description, top_k=3):
-    """Queries the database to retrieve the three most relevant exercises
-    based on the provided description and the corresponding generated embedding.
-    This function is only used for the video analysis."""
-    response = ollama.embed(model="nomic-embed-text", input=description)
-    embedding = response.embeddings[0]
-    cur.execute("""
-                SELECT exercise_name
-                FROM exercises
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s
-                """, (embedding, top_k))
-
-    rows = cur.fetchall()
-    results = []
-    for name in rows:
-        results.append(name[0])
-    return results
-
-
-def retrieve_exercise_description(name):
-    """Retrieves the description of the exercise that matches the given name.
-    Used in the last step of the video analysis pipeline."""
-    cur.execute("""
-                SELECT description
-                FROM exercises
-                WHERE exercise_name ILIKE %s
-                """, (name,))
-    return cur.fetchone()[0]
+from retrieval import retrieve_exercises, retrieve_exercise_names, retrieve_exercise_description
+from memory import Memory
+from classification import classify_intent, classify_injured_muscle
 
 
 def run_main_pipeline(user_input):
@@ -162,7 +28,7 @@ def run_main_pipeline(user_input):
     intent = classify_intent(user_input)
 
     if intent in ("EXERCISE_INJURY", "PLAN_INJURY"):
-        injured_muscle_id = extract_injured_muscle(user_input)
+        injured_muscle_id = classify_injured_muscle(user_input)
         retrieved = retrieve_exercises(
             user_input, injured_muscle_id=injured_muscle_id)
 
@@ -171,6 +37,16 @@ def run_main_pipeline(user_input):
 
     elif intent in ("NUTRITION", "NUTRITION_PLAN"):
         retrieved = None  # nutrition talk requires no RAG
+        for token in run_nutrition_pipeline(user_input):
+            response_content += token
+            yield
+
+        Memory.chat_history += [
+            {"role": "user", "content": user_input},
+            {"role": "assistant", "content": response_content}
+        ]
+
+        return
 
     else:
         retrieved = None
@@ -205,9 +81,12 @@ def run_main_pipeline(user_input):
                             # the user query plus the SQL results
                             + [{"role": "user", "content": f"{rag_context}\n\nUser question: {user_input}"}],
                             options={
-                                "temperature": 0.7,  # how creative the model can get -> 0.0 is static, 1.0 is unpredictable
-                                "num_predict": 8192,  # maximum number of tokens the model can generate in one response
-                                "num_ctx": 8192  # context window size, exceeding this causes the model to forget prior info
+                                # how creative the model can get -> 0.0 is static, 1.0 is unpredictable
+                                "temperature": 0.7,
+                                # maximum number of tokens the model can generate in one response
+                                "num_predict": 8192,
+                                # context window size, exceeding this causes the model to forget prior info
+                                "num_ctx": 8192
                             },
                             stream=False)
 
@@ -271,6 +150,22 @@ def run_nutrition_pipeline(user_input):
     """when the intent is classified as NUTRITION or NUTRITION_PLAN,
     the LLM does not do RAG and instead shifts to a nutritionist role"""
     yield "Hungry..."
+
+    initial_response = chat("medical-expert:latest",
+                            # the system prompt
+                            messages=[{"role": "system", "content": NUTRITION_PROMPT}] +
+                            # context from the last 5 messages
+                            Memory.chat_history[-10:]
+                            # the user query plus the SQL results
+                            + [{"role": "user", "content": f"{rag_context}\n\nUser question: {user_input}"}],
+                            options={
+                                "temperature": 0.7,  # how creative the model can get -> 0.0 is static, 1.0 is unpredictable
+                                "num_predict": 8192,  # maximum number of tokens the model can generate in one response
+                                "num_ctx": 8192  # context window size, exceeding this causes the model to forget prior info
+                            },
+                            stream=False)
+
+    initial_text = initial_response.message.content
 
 
 def review_and_rewrite(user_input, response):
