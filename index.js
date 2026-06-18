@@ -5,14 +5,21 @@ const mediaUpload = document.getElementById("media-upload") // the button to upl
 let pendingImage = null
 let pendingVideoChoice = null
 let pendingFileType = null
+let manualVideoEntry = false
 
 sendBtn.addEventListener("click", function () {
+    //console.log("pendingVideoChoice:", pendingVideoChoice, "pendingImage:", pendingImage)
     const wrapper = document.createElement("div")
     wrapper.style.textAlign = "right" // user's messages go right, bot responses - left
 
     const message = userInput.value
 
     if (message.trim() === "") return // if text box is blank, do not do anything
+
+    if (manualVideoEntry) {
+        pendingVideoChoice = message
+        manualVideoEntry = false
+    }
 
     const userDiv = document.createElement("div")
     userDiv.innerText = message
@@ -65,6 +72,7 @@ sendBtn.addEventListener("click", function () {
             chatWindow.appendChild(div) // div gets added to chat
 
             let isStatus = true
+            let choiceContainer = null
 
             function read() {
                 reader.read().then(function ({ done, value }) {
@@ -76,28 +84,55 @@ sendBtn.addEventListener("click", function () {
                         div.classList.add("pulsing")
                     } else if (token.startsWith("CHOICES:")) {
                         div.innerText = ""
-                        const names = token.replace("CHOICES:", "").split(",")
+                        const content = token.replace("CHOICES:", "").split("|")
+                        const message = content[0]
+                        const names = content[1].split(",")
+
+                        choiceContainer = document.createElement("div")
+                        choiceContainer.classList.add("bot-message")
+                        choiceContainer.style.display = "flex"
+                        choiceContainer.style.gap = "8px"
+                        choiceContainer.style.flexDirection = "column"
+                        choiceContainer.style.alignSelf = "flex-start"
+                        choiceContainer.style.width = "fit-content"
+
+                        const messageDiv = document.createElement("div")
+                        messageDiv.innerText = message
+                        choiceContainer.appendChild(messageDiv)
+
+                        const btnRow = document.createElement("div")
+                        btnRow.style.display = "flex"
+                        btnRow.style.gap = "8px"
+                        btnRow.style.flexWrap = "wrap"
+
                         names.forEach(function (name) {
                             const button = document.createElement("button")
                             button.classList.add("choice-btn")
                             button.innerText = name
-                            chatWindow.appendChild(button)
                             button.addEventListener("click", function () {
                                 pendingVideoChoice = name
                                 userInput.value = name
                                 sendBtn.click()
-                                document.querySelectorAll(".choice-btn").forEach(b => b.remove())
+                                choiceContainer.remove()
                             })
+                            btnRow.appendChild(button)
                         })
+
                         const noneBtn = document.createElement("button")
                         noneBtn.innerText = "None of the above"
                         noneBtn.classList.add("choice-btn")
+                        noneBtn.style.alignSelf = "flex-start"
                         noneBtn.addEventListener("click", function () {
                             pendingVideoChoice = "manual"
+                            userInput.value = "None of the above"
                             sendBtn.click()
-                            document.querySelectorAll(".choice-btn").forEach(b => b.remove())
+                            manualVideoEntry = true
+                            pendingVideoChoice = null
+                            choiceContainer.remove()
                         })
-                        chatWindow.appendChild(noneBtn)
+                        btnRow.appendChild(noneBtn)
+                        choiceContainer.appendChild(btnRow)
+                        chatWindow.appendChild(choiceContainer)
                     }
                     else {
                         if (isStatus) {
@@ -105,6 +140,7 @@ sendBtn.addEventListener("click", function () {
                             div.classList.remove("pulsing")
                             isStatus = false // once the real response comes, the loading indicators get removed and the response starts streaming below
                         }
+
                         div.innerText += token
                     }
                     read()

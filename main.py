@@ -5,9 +5,10 @@ connecting backend with frontend.
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from pipeline import run_main_pipeline, run_video_pipeline
+from pipelines import run_main_pipeline, run_video_pipeline
 from fastapi.middleware.cors import CORSMiddleware
 from vision import analyse_image, analyse_video
+import logging
 
 app = FastAPI()
 
@@ -25,6 +26,16 @@ class Message(BaseModel):
     image_path: str | None = None
     file_type: str | None = None
     video_choice: str | None = None
+
+
+logging.basicConfig(
+    filename="refit.log",
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s -%(message)s"
+)
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 @app.post("/chat")

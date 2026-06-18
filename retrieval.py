@@ -72,4 +72,8 @@ def retrieve_exercise_description(name):
                 FROM exercises
                 WHERE exercise_name ILIKE %s
                 """, (name,))
-    return cur.fetchone()[0]
+
+    result = cur.fetchone()
+    if result is None:
+        return None
+    return result[0]

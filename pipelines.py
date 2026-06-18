@@ -9,10 +9,11 @@ from prompts import *
 from retrieval import retrieve_exercises, retrieve_exercise_names, retrieve_exercise_description
 from memory import Memory
 from classification import classify_intent, classify_injured_muscle
+import logging
 
 
 def run_main_pipeline(user_input):
-    """The main driver behind the chatbot.
+    """The main driver behind the chatting part of the app.
     Takes user input, clarifies intent, retrieves
     relevant exercises, reviews initial answer,
     and returns final response."""
@@ -23,12 +24,19 @@ def run_main_pipeline(user_input):
         yield "Chat history cleared."
         return
 
+    logging.debug("=" * 100)
+    logging.debug(f"User's message: {user_input}")
+
     response_content = ""
+
     # determines user intent before proceeding
     intent = classify_intent(user_input)
+    logging.debug(f"Intent classified as: {intent}")
 
     if intent in ("EXERCISE_INJURY", "PLAN_INJURY"):
         injured_muscle_id = classify_injured_muscle(user_input)
+        logging.debug(f"Injured muscle: {injured_muscle_id}")
+
         retrieved = retrieve_exercises(
             user_input, injured_muscle_id=injured_muscle_id)
 
@@ -39,12 +47,14 @@ def run_main_pipeline(user_input):
         retrieved = None  # nutrition talk requires no RAG
         for token in run_nutrition_pipeline(user_input):
             response_content += token
-            yield
+            yield token
 
         Memory.chat_history += [
             {"role": "user", "content": user_input},
             {"role": "assistant", "content": response_content}
         ]
+
+        logging.debug(f"Final response: {response_content}")
 
         return
 
@@ -68,6 +78,7 @@ def run_main_pipeline(user_input):
 
         return
 
+    logging.info(f"RAG retrieved: {retrieved}")
     # below is the result of the SQL queries
     rag_context = f"Relevant exercises:\n\n{retrieved}"
 
@@ -91,11 +102,13 @@ def run_main_pipeline(user_input):
                             stream=False)
 
     initial_text = initial_response.message.content
+    logging.debug(f"LLM initial response: {initial_text}")
 
     for token in review_and_rewrite(user_input, initial_text):
         response_content += token
         yield token
 
+    logging.debug(f"Final response: {response_content}")
     Memory.chat_history += [
         {"role": "user", "content": user_input},
         # adds the user query and subsequent LLM response to the chat history
@@ -108,8 +121,13 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
     the back and forth interactions - extracts joint coordinates from video, generates
     a natural language interpretation of them, clarifies with the user what
     exercise is shown, and then runs pipeline based on that."""
-    yield "Processing..."
+
+    logging.debug("=" * 100)
+    logging.debug(f"User's message: {user_input}")
+
     if video_summary:
+        yield "Processing..."
+
         first_step = chat("medical-expert:latest", messages=[{"role": "system", "content":
                                                               """You are an exercise analyst. 
         Based on the given joint position coordinates and user context
@@ -126,12 +144,26 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
         },
             stream=False)
         Memory.video_summary = first_step.message.content  # saves it for future use
+        logging.debug(f"Video summary: {Memory.video_summary}")
 
         probable_exercises = retrieve_exercise_names(
             first_step.message.content)
-        yield f"CHOICES:{probable_exercises[0]},{probable_exercises[1]},{probable_exercises[2]}"
+        Memory.video_probable_exercises = probable_exercises
+        yield f"CHOICES:To confirm, which exercise is shown in the video?|{probable_exercises[0]},{probable_exercises[1]},{probable_exercises[2]}"
+
     if video_choice:
+        if video_choice == "manual":
+            yield "Please type the name of the exercise shown in the video."
+            return
+
         exercise_description = retrieve_exercise_description(user_input)
+
+        if not exercise_description:
+            probable_exercises = Memory.video_probable_exercises
+            yield f"CHOICES:That was not recognised, please choose from the list again:|{probable_exercises[0]},{probable_exercises[1]},{probable_exercises[2]}"
+            return
+
+        response_content = ""
         yield "Thinking..."
         response = chat("medical-expert:latest", messages=[
             {"role": "system", "content":
@@ -142,8 +174,18 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
             Rate my form and give specific corrections."""}
         ], stream=True)
         for chunk in response:
-            yield chunk.message.content
+            token = chunk.message.content
+            response_content += token
+            yield token
+
         Memory.reset_video()
+
+        logging.debug(f"Video response: {response_content}")
+
+        Memory.chat_history += [
+            {"role": "user", "content": user_input},
+            {"role": "assistant", "content": response_content}
+        ]
 
 
 def run_nutrition_pipeline(user_input):
@@ -151,21 +193,26 @@ def run_nutrition_pipeline(user_input):
     the LLM does not do RAG and instead shifts to a nutritionist role"""
     yield "Hungry..."
 
+    logging.debug(f"User's message: {user_input}")
+
     initial_response = chat("medical-expert:latest",
                             # the system prompt
                             messages=[{"role": "system", "content": NUTRITION_PROMPT}] +
                             # context from the last 5 messages
                             Memory.chat_history[-10:]
                             # the user query plus the SQL results
-                            + [{"role": "user", "content": f"{rag_context}\n\nUser question: {user_input}"}],
+                            + [{"role": "user", "content": f"User question: {user_input}"}],
                             options={
-                                "temperature": 0.7,  # how creative the model can get -> 0.0 is static, 1.0 is unpredictable
-                                "num_predict": 8192,  # maximum number of tokens the model can generate in one response
-                                "num_ctx": 8192  # context window size, exceeding this causes the model to forget prior info
+                                "temperature": 0.7,
+                                "num_predict": 8192,
+                                "num_ctx": 8192
                             },
                             stream=False)
 
     initial_text = initial_response.message.content
+    logging.debug(f"Nutrition first response: {initial_text}")
+
+    yield from review_and_rewrite(user_input, initial_text)
 
 
 def review_and_rewrite(user_input, response):
@@ -187,6 +234,7 @@ def review_and_rewrite(user_input, response):
                         stream=False)
 
     audit_text = double_check.message.content
+    logging.debug(f"Reviewer response: {audit_text}")
 
     final_response = chat("llama3",
                           messages=[
