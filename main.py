@@ -5,7 +5,7 @@ connecting backend with frontend.
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from pipeline import run_pipeline, run_video_pipeline
+from pipeline import run_main_pipeline, run_video_pipeline
 from fastapi.middleware.cors import CORSMiddleware
 from vision import analyse_image, analyse_video
 
@@ -47,7 +47,7 @@ async def chat_endpoint(message: Message):
         return StreamingResponse(analyse_image(message.image_path, message.content), media_type="text/plain")
 
     # if no media is present, regular pipeline runs
-    return StreamingResponse(run_pipeline(message.content), media_type="text/plain")
+    return StreamingResponse(run_main_pipeline(message.content), media_type="text/plain")
 
 
 @app.post("/upload")

@@ -46,6 +46,8 @@ def classify_intent(user_input):
         EXERCISE_INJURY
         PLAN_GENERAL
         PLAN_INJURY
+        NUTRITION
+        NUTRITION_PLAN
         CHITCHAT
 
         No explanation. No punctuation. No other text. Just the label.
@@ -57,7 +59,9 @@ def classify_intent(user_input):
         "I hurt my knee, what can I do?" -> EXERCISE_INJURY
         "make me a workout plan" -> PLAN_GENERAL
         "make me a plan, I have a bad back" -> PLAN_INJURY
-        "hi how are you" -> CHITCHAT"""},
+        "hi how are you" -> CHITCHAT
+        "what foods are rich in protein? -> NUTRITION
+        "I want to bulk in a healthy way, what do you recommend? -> NUTRITION_PLAN"""},
         {"role": "user", "content": user_input}
     ])
     return response.message.content.strip()
@@ -136,12 +140,12 @@ def retrieve_exercise_description(name):
     cur.execute("""
                 SELECT description
                 FROM exercises
-                WHERE exercise_name = %s
+                WHERE exercise_name ILIKE %s
                 """, (name,))
     return cur.fetchone()[0]
 
 
-def run_pipeline(user_input):
+def run_main_pipeline(user_input):
     """The main driver behind the chatbot.
     Takes user input, clarifies intent, retrieves
     relevant exercises, reviews initial answer,
@@ -165,8 +169,11 @@ def run_pipeline(user_input):
     elif intent in ("EXERCISE_GENERAL", "PLAN_GENERAL"):
         retrieved = retrieve_exercises(user_input)
 
+    elif intent in ("NUTRITION", "NUTRITION_PLAN"):
+        retrieved = None  # nutrition talk requires no RAG
+
     else:
-        retrieved = None  # skip RAG for regular chats
+        retrieved = None
         response = chat("llama3", messages=[
             {"role": "system",
                 "content": "You are a helpful fitness assistant. Be conversational and brief."}] + Memory.chat_history[-10:]
@@ -206,39 +213,7 @@ def run_pipeline(user_input):
 
     initial_text = initial_response.message.content
 
-    # the same LLM with a different system prompt reviews the above response under a list of criteria
-    yield "Reviewing..."
-    double_check = chat("medical-expert:latest",
-                        messages=[
-                            {"role": "system", "content": REVIEW_PROMPT},
-                            {"role": "user", "content": (
-                                f"Original Question: {user_input}\n\nAI Response: {initial_text}")}
-                        ],
-                        options={
-                            "temperature": 0.1,
-                            "num_predict": 4096,
-                            "num_ctx": 8192
-                        },
-                        stream=False)
-
-    audit_text = double_check.message.content
-
-    final_response = chat("llama3",
-                          messages=[
-                              {"role": "system", "content": FINAL_PROMPT},
-                              {"role": "user", "content": (
-                                  f"Original Advice:\n{initial_text}\n\n"
-                                  f"Review Audit:\n{audit_text}")}
-                          ],
-                          options={
-                              "temperature": 0.1,
-                              "num_predict": 4096,
-                              "num_ctx": 8192
-                          },
-                          stream=True)  # final response will stream as it is being generated
-
-    for chunk in final_response:
-        token = chunk.message.content
+    for token in review_and_rewrite(user_input, initial_text):
         response_content += token
         yield token
 
@@ -256,7 +231,8 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
     exercise is shown, and then runs pipeline based on that."""
     yield "Processing..."
     if video_summary:
-        first_step = chat("medical-expert:latest", messages=[{"role": "system", "content": """You are an exercise analyst. 
+        first_step = chat("medical-expert:latest", messages=[{"role": "system", "content":
+                                                              """You are an exercise analyst. 
         Based on the given joint position coordinates and user context
         identify the exercise being performed and describe it in natural language, focusing on:
         - Which muscle groups are being used
@@ -289,3 +265,48 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
         for chunk in response:
             yield chunk.message.content
         Memory.reset_video()
+
+
+def run_nutrition_pipeline(user_input):
+    """when the intent is classified as NUTRITION or NUTRITION_PLAN,
+    the LLM does not do RAG and instead shifts to a nutritionist role"""
+    yield "Hungry..."
+
+
+def review_and_rewrite(user_input, response):
+    """takes the LLM's initial response, reviews it under a list of criteria,
+    and rewrites it to be conversational and layman-friendly"""
+
+    yield "Reviewing..."
+    double_check = chat("medical-expert:latest",
+                        messages=[
+                            {"role": "system", "content": REVIEW_PROMPT},
+                            {"role": "user", "content": (
+                                f"Original Question: {user_input}\n\nAI Response: {response}")}
+                        ],
+                        options={
+                            "temperature": 0.1,
+                            "num_predict": 4096,
+                            "num_ctx": 8192
+                        },
+                        stream=False)
+
+    audit_text = double_check.message.content
+
+    final_response = chat("llama3",
+                          messages=[
+                              {"role": "system", "content": FINAL_PROMPT},
+                              {"role": "user", "content": (
+                                  f"Original Advice:\n{response}\n\n"
+                                  f"Review Audit:\n{audit_text}")}
+                          ],
+                          options={
+                              "temperature": 0.1,
+                              "num_predict": 4096,
+                              "num_ctx": 8192
+                          },
+                          stream=True)  # final response will stream as it is being generated
+
+    for chunk in final_response:
+        token = chunk.message.content
+        yield token

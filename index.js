@@ -71,7 +71,7 @@ sendBtn.addEventListener("click", function () {
                     if (done) return // once streaming has ended, stops the function
                     const token = decoder.decode(value)
                     console.log(token)
-                    if (token === "Thinking..." || token === "Reviewing..." || token === "Analysing..." || token == "Processing...") {
+                    if (token === "Thinking..." || token === "Reviewing..." || token === "Analysing..." || token == "Processing..." || token == "Hungry...") {
                         div.innerText = token
                         div.classList.add("pulsing")
                     } else if (token.startsWith("CHOICES:")) {

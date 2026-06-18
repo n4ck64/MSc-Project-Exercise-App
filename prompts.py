@@ -59,5 +59,5 @@ EXTRACTION_PROMPT = """You are a muscle ID extractor. Your only job is to return
     401=Upper trapezius, 402=Middle trapezius, 403=Lower trapezius, 404=Latissimus dorsi, 405=Rhomboids, 406=Levator scapulae, 407=Erector spinae,
     501=Rectus abdominis, 502=Obliques, 503=Transversus abdominis,
     601=Gluteus maximus, 602=Gluteus medius, 603=Gluteus minimus,
-    701=Quadriceps, 702=Hamstrings, 703=Abductors,
+    701=Quadriceps, 702=Hamstrings, 703=Adductors,
     801=Calves, 802=Shins, 803=Peroneals"""
