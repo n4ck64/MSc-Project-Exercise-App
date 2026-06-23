@@ -9,6 +9,7 @@ class Memory:
     chat_history = []
     video_summary = None
     video_probable_exercises = []
+    last_exercises = []
 
     @classmethod
     def clear(cls):

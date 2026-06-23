@@ -42,6 +42,11 @@ def run_main_pipeline(user_input):
 
     elif intent in ("EXERCISE_GENERAL", "PLAN_GENERAL"):
         retrieved = retrieve_exercises(user_input)
+        Memory.last_exercises = [
+            line.replace("Exercise: ", "")
+            for line in retrieved.split("\n")
+            if line.startswith("Exercise: ")
+        ]
 
     elif intent in ("NUTRITION", "NUTRITION_PLAN"):
         retrieved = None  # nutrition talk requires no RAG
