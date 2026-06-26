@@ -23,6 +23,7 @@ function App() {
   const [message, setMessage] = useState<string>("")
   const bottomRef = useRef<HTMLDivElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("chat")
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -153,7 +154,7 @@ function App() {
           <div className="sidebar-tab">Plans</div>
           <div className="sidebar-tab">Chat History</div>
           <div className="sidebar-tab">Settings</div>
-          <img id="user-avatar" src="/chag.png" />
+          <img id="user-avatar" src="/chad.png" />
         </div>
         <div id="chat-window">
           {messages.map((m, i) => (

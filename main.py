@@ -2,13 +2,13 @@
 This is the brain of the app,
 connecting backend with frontend.
 """
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from pipelines import run_main_pipeline, run_video_pipeline
-from fastapi.middleware.cors import CORSMiddleware
-from vision import analyse_image, analyse_video
 import logging
+from pipelines import run_main_pipeline, run_video_pipeline
+from vision import analyse_image, analyse_video
 
 app = FastAPI()
 
