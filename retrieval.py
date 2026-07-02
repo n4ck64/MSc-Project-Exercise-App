@@ -77,3 +77,35 @@ def retrieve_exercise_description(name):
     if result is None:
         return None
     return result[0]
+
+
+def retrieve_foods(query, top_k=3):
+    """Queries the database to retrieve the most relevant foods
+    based on the user's input, returning their key macros per 100g of food.
+    Used by the nutrition talk pipeline."""
+    rag_query = query if len(
+        Memory.chat_history) == 0 else Memory.chat_history[-1]["content"] + " " + query
+    # if first message, the RAG uses the query to do its retrieval, else uses the query plus the previous message
+    response = ollama.embed(model="nomic-embed-text", input=rag_query)
+    embedding = response.embeddings[0]
+    cur.execute("""
+                SELECT food_name, kcal, protein_g, fat_g, carb_g, total_sugars_g, fibre_nsp_g
+                FROM foods
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s
+                """, (embedding, top_k))
+
+    rows = cur.fetchall()
+
+    def fmt(value, unit):
+        # CoFID leaves some nutrients unmeasured (stored as NULL).
+        return f"{value}{unit}" if value is not None else "N/A"
+
+    results = []
+    for name, kcal, protein, fat, carb, sugars, fibre in rows:
+        results.append(
+            f"Food: {name} (per 100g)\n"
+            f"Energy: {fmt(kcal, ' kcal')} | Protein: {fmt(protein, 'g')} | "
+            f"Fat: {fmt(fat, 'g')} | Carbohydrate: {fmt(carb, 'g')} | "
+            f"Sugars: {fmt(sugars, 'g')} | Fibre: {fmt(fibre, 'g')}")
+    return "\n\n".join(results)
