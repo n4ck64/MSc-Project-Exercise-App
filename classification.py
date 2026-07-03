@@ -1,10 +1,10 @@
 """
-The functions here classify information from text using llama3
+The functions here classify information from text using llama3.1
 """
 
 from ollama import chat
 from memory import Memory
-from prompts import EXTRACTION_PROMPT
+from prompts import EXTRACTION_PROMPT, CONDENSE_PROMPT
 import re
 
 
@@ -14,7 +14,7 @@ def classify_intent(user_input):
     making a general plan with an injury, or just chitchatting."""
 
     INTENT_LABELS = ["EXERCISE_GENERAL", "EXERCISE_INJURY",
-                     "PLAN_GENERAL", "PLAN_INJURY", "NUTRITION", "NUTRITION_PLAN", "CHITCHAT"]
+                     "PLAN_GENERAL", "PLAN_INJURY", "NUTRITION_PLAN", "NUTRITION", "CHITCHAT"]
 
     response = chat("llama3.1", messages=[
         {"role": "system", "content": f"""You are a classifier.
@@ -63,3 +63,37 @@ def classify_injured_muscle(user_input):
     match = re.search(r"\d+", response.message.content)
 
     return int(match.group()) if match else None
+
+
+def _clean_query(text):
+    """Strips any preamble/quotes a chatty model may add around the rewritten
+    query, leaving a bare string that is safe to embed. Returns "" if nothing
+    usable is left (the caller falls back to the original query)."""
+    # if the model prefaced with an explanation, keep the last non-empty line
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    text = lines[-1] if lines else ""
+    text = text.strip("'\"").strip()
+    # drop a leading "<label>:" the model might prepend
+    lowered = text.lower()
+    for prefix in ("standalone query:", "search query:", "rewritten query:", "query:"):
+        if lowered.startswith(prefix):
+            text = text[len(prefix):].strip("'\" ").strip()
+            break
+    return text
+
+
+def condense_query(user_input):
+    """Rewrites a follow-up into a standalone query using recent history, so the
+    RAG embeds the user's actual intent instead of the previous reply. Returns
+    self-contained queries unchanged, and skips the LLM call on the first turn."""
+    if not Memory.chat_history:
+        return user_input
+
+    history = "\n".join(
+        f'{m["role"]}: {m["content"]}' for m in Memory.chat_history[-4:])
+    response = chat("llama3.1", messages=[
+        {"role": "system", "content": CONDENSE_PROMPT},
+        {"role": "user",
+         "content": f"Conversation:\n{history}\n\nLatest message: {user_input}"}
+    ])
+    return _clean_query(response.message.content) or user_input

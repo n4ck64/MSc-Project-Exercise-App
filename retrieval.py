@@ -6,7 +6,6 @@ from datetime import date
 
 import ollama
 import psycopg2
-from memory import Memory
 
 conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
 cur = conn.cursor()
@@ -15,10 +14,8 @@ cur = conn.cursor()
 def retrieve_exercises(query, top_k=3, injured_muscle_id=None):
     """Queries the database to retrieve the three most relevant exercises
     based on the user's input and the corresponding generated embedding"""
-    rag_query = query if len(
-        Memory.chat_history) == 0 else Memory.chat_history[-1]["content"] + " " + query
-    # if first message, the RAG uses the query to do its retrieval, else uses the query plus the previous message
-    response = ollama.embed(model="nomic-embed-text", input=rag_query)
+    response = ollama.embed(model="nomic-embed-text",
+                            input=f"search_query: {query}")
     embedding = response.embeddings[0]
     if injured_muscle_id:
         cur.execute("""
@@ -50,7 +47,8 @@ def retrieve_exercise_names(description, top_k=3):
     """Queries the database to retrieve the three most relevant exercises
     based on the provided description and the corresponding generated embedding.
     This function is only used for the video analysis."""
-    response = ollama.embed(model="nomic-embed-text", input=description)
+    response = ollama.embed(model="nomic-embed-text",
+                            input=f"search_query: {description}")
     embedding = response.embeddings[0]
     cur.execute("""
                 SELECT exercise_name
@@ -85,10 +83,8 @@ def retrieve_foods(query, top_k=3):
     """Queries the database to retrieve the most relevant foods
     based on the user's input, returning their key macros per 100g of food.
     Used by the nutrition talk pipeline."""
-    rag_query = query if len(
-        Memory.chat_history) == 0 else Memory.chat_history[-1]["content"] + " " + query
-    # if first message, the RAG uses the query to do its retrieval, else uses the query plus the previous message
-    response = ollama.embed(model="nomic-embed-text", input=rag_query)
+    response = ollama.embed(model="nomic-embed-text",
+                            input=f"search_query: {query}")
     embedding = response.embeddings[0]
     cur.execute("""
                 SELECT food_name, kcal, protein_g, fat_g, carb_g, total_sugars_g, fibre_nsp_g

@@ -8,7 +8,7 @@ from ollama import chat
 from prompts import *
 from retrieval import retrieve_exercises, retrieve_exercise_names, retrieve_exercise_description
 from memory import Memory
-from classification import classify_intent, classify_injured_muscle
+from classification import classify_intent, classify_injured_muscle, condense_query
 import logging
 
 
@@ -29,19 +29,24 @@ def run_main_pipeline(user_input):
 
     response_content = ""
 
+    # resolve follow-ups into a standalone query up front, so both intent
+    # classification and RAG retrieval operate on the resolved query
+    search_query = condense_query(user_input)
+    logging.debug(f"User input rewritten as: {search_query}")
+
     # determines user intent before proceeding
-    intent = classify_intent(user_input)
+    intent = classify_intent(search_query)
     logging.debug(f"Intent classified as: {intent}")
 
     if intent in ("EXERCISE_INJURY", "PLAN_INJURY"):
-        injured_muscle_id = classify_injured_muscle(user_input)
+        injured_muscle_id = classify_injured_muscle(search_query)
         logging.debug(f"Injured muscle: {injured_muscle_id}")
 
         retrieved = retrieve_exercises(
-            user_input, injured_muscle_id=injured_muscle_id)
+            search_query, injured_muscle_id=injured_muscle_id)
 
     elif intent in ("EXERCISE_GENERAL", "PLAN_GENERAL"):
-        retrieved = retrieve_exercises(user_input)
+        retrieved = retrieve_exercises(search_query)
         Memory.last_exercises = [
             line.replace("Exercise: ", "")
             for line in retrieved.split("\n")

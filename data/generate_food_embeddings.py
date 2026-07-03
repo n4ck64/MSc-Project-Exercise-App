@@ -19,7 +19,9 @@ foods = cur.fetchall()
 print(f"{len(foods)} foods to embed.")
 
 for i, (food_id, food_name, description) in enumerate(foods, start=1):
-    text = f"{food_name}. {description}"
+    # nomic-embed-text is asymmetric: documents need the search_document: prefix
+    # (queries use search_query:), otherwise retrieval quality drops noticeably.
+    text = f"search_document: {food_name}. {description}"
     response = ollama.embed(model="nomic-embed-text", input=text)
     embedding = response.embeddings[0]
 

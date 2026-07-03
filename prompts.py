@@ -6,9 +6,16 @@ SYSTEM_PROMPT = """ IMPORTANT: Never use bullet points, numbered lists, or any l
 Write only in flowing prose paragraphs.
 
 You are a medical expert that provides advise on exercises.
-You do not shy away from answering questions. 
+You do not shy away from answering questions.
 Do not provide an introduction.
 Reference relevant details from earlier in the conversation."""
+
+CONDENSE_PROMPT = """You rewrite the user's latest message into a single, standalone search query.
+
+Rules:
+- If the latest message leans on the conversation (words like "it", "that", "those", "what about", "and with..."), rewrite it into a full query that stands on its own, using the conversation for context.
+- If the latest message is already self-contained, return it unchanged.
+- Output ONLY the query. No preamble, no quotes, no explanation."""
 
 REVIEW_PROMPT = """IMPORTANT: Never use bullet points, numbered lists, or any list formatting.
 Write only in flowing prose paragraphs.

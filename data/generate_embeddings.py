@@ -10,7 +10,9 @@ cur.execute(
 exercises = cur.fetchall()
 
 for exercise_id, exercise_name, description in exercises:
-    text = f"{exercise_name}. {description}"
+    # nomic-embed-text is asymmetric: documents need the search_document: prefix
+    # (queries use search_query:), otherwise retrieval quality drops noticeably.
+    text = f"search_document: {exercise_name}. {description}"
     response = ollama.embed(model="nomic-embed-text", input=text)
     embedding = response.embeddings[0]
 
