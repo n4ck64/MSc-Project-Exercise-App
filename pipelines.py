@@ -94,7 +94,7 @@ def run_main_pipeline(user_input):
 
     # a medical LLM responds given the user query and the SQL output
     yield "Thinking..."
-    initial_response = chat("medical-expert:latest",
+    initial_response = chat("llama3.1",
                             # the system prompt
                             messages=[{"role": "system", "content": SYSTEM_PROMPT}] +
                             # context from the last 5 messages
@@ -114,7 +114,7 @@ def run_main_pipeline(user_input):
     initial_text = initial_response.message.content
     logging.debug(f"LLM initial response: {initial_text}")
 
-    for token in review_and_rewrite(user_input, initial_text):
+    for token in review_and_rewrite(user_input, initial_text, EXERCISE_REVIEW_PROMPT, retrieved):
         response_content += token
         yield token
 
@@ -222,19 +222,25 @@ def run_nutrition_pipeline(user_input):
     initial_text = initial_response.message.content
     logging.debug(f"Nutrition first response: {initial_text}")
 
-    yield from review_and_rewrite(user_input, initial_text)
+    yield from review_and_rewrite(user_input, initial_text, NUTRITION_REVIEW_PROMPT)
 
 
-def review_and_rewrite(user_input, response):
+def review_and_rewrite(user_input, response, review_prompt, rag_context=None):
     """takes the LLM's initial response, reviews it under a list of criteria,
     and rewrites it to be conversational and layman-friendly"""
 
     yield "Reviewing..."
-    double_check = chat("medical-expert:latest",
+
+    if rag_context:
+        review_input = (f"Approved exercises:\n{rag_context}\n\n"
+                        f"Original Question: {user_input}\n\nAI Response: {response}")
+    else:
+        review_input = f"Original Question: {user_input}\n\nAI Response: {response}"
+
+    double_check = chat("llama3.1",
                         messages=[
-                            {"role": "system", "content": REVIEW_PROMPT},
-                            {"role": "user", "content": (
-                                f"Original Question: {user_input}\n\nAI Response: {response}")}
+                            {"role": "system", "content": review_prompt},
+                            {"role": "user", "content": review_input}
                         ],
                         options={
                             "temperature": 0.1,
