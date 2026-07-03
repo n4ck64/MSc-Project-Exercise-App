@@ -19,7 +19,7 @@ def retrieve_exercises(query, top_k=3, injured_muscle_id=None):
     embedding = response.embeddings[0]
     if injured_muscle_id:
         cur.execute("""
-                    SELECT exercise_name, description, type, difficulty, equipment
+                    SELECT exercise_id, exercise_name, description, type, difficulty, equipment
                     FROM exercises
                     WHERE exercise_id NOT IN (
                         SELECT exercise_id FROM muscles_exercised WHERE muscle_id = %s
@@ -29,7 +29,7 @@ def retrieve_exercises(query, top_k=3, injured_muscle_id=None):
                     """, (injured_muscle_id, embedding, top_k))
     else:
         cur.execute("""
-                    SELECT exercise_name, description, type, difficulty, equipment
+                    SELECT exercise_id, exercise_name, description, type, difficulty, equipment
                     FROM exercises
                     ORDER BY embedding <=> %s::vector
                     LIMIT %s
@@ -37,10 +37,31 @@ def retrieve_exercises(query, top_k=3, injured_muscle_id=None):
 
     rows = cur.fetchall()
     results = []
-    for name, description, type_, difficulty, equipment in rows:
+    for ex_id, name, description, type_, difficulty, equipment in rows:
+        m = _muscles_for_exercise(ex_id)
         results.append(
-            f"Exercise: {name}\nType: {type_} | Difficulty: {difficulty} | Equipment: {equipment}\nDescription: {description}")
+            f"Exercise: {name}\n"
+            f"Type: {type_} | Difficulty: {difficulty} | Equipment: {equipment}\n"
+            f"Muscles — Primary: {m['Primary']} | Secondary: {m['Secondary']} | Stabilisers: {m['Stabiliser']}\n"
+            f"Description: {description}")
     return "\n\n".join(results)
+
+
+def _muscles_for_exercise(exercise_id):
+    """Returns an exercise's worked muscles grouped by role (Primary, Secondary,
+    Stabiliser) as display strings, for grounding the answerer and reviewer."""
+    cur.execute("""
+                SELECT me.role, string_agg(m.muscle_name, ', ' ORDER BY m.muscle_name)
+                FROM muscles_exercised me
+                JOIN muscles m ON m.muscle_id = me.muscle_id
+                WHERE me.exercise_id = %s
+                GROUP BY me.role
+                """, (exercise_id,))
+    grouped = {"Primary": "none listed",
+               "Secondary": "none listed", "Stabiliser": "none listed"}
+    for role, names in cur.fetchall():
+        grouped[role] = names
+    return grouped
 
 
 def retrieve_exercise_names(description, top_k=3):

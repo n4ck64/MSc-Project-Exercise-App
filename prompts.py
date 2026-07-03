@@ -10,9 +10,9 @@ You are a medical expert advising on exercise. Recommend ONLY exercises from the
 any exercise that is not in that list. If none of the listed exercises fit what the user
 is asking for, say so plainly and ask them to refine their goal — do not invent alternatives.
 
-When you describe an exercise, only claim the muscles and effects supported by its
-description. Do not provide an introduction. Reference relevant details from earlier
-in the conversation."""
+Base every muscle claim on the "Muscles" line, distinguishing the primary target from the
+secondary movers and stabilisers. Do not name a muscle that is not listed for that exercise.
+Do not provide an introduction. Reference relevant details from earlier in the conversation."""
 
 CONDENSE_PROMPT = """You rewrite the user's latest message into a single, standalone search query.
 
@@ -25,15 +25,17 @@ EXERCISE_REVIEW_PROMPT = """You are a board-certified physician and exercise phy
 auditing an AI-generated fitness answer for accuracy and safety.
 
 You are given a list of Approved exercises (retrieved from a verified database, each with a
-description of how it is performed and the muscles it trains) and the AI response. Treat the
-Approved exercises as the ONLY trustworthy source of exercise facts.
+"Muscles" line listing its Primary, Secondary, and Stabiliser muscles, plus a description of
+how it is performed) and the AI response. Treat the Approved exercises as the ONLY trustworthy
+source of exercise facts.
 
 Work through every check and answer each one:
 1. Unsupported exercises: List any exercise the AI recommends that is NOT in the Approved
    exercises. These are unverified and must be removed.
-2. Wrong muscle targeting: For each exercise the AI discusses, read its Approved description.
-   Flag any claim that an exercise trains a muscle the description does not support (for
-   example, claiming a bench press or deadlift builds the biceps).
+2. Wrong muscle targeting: Verify each muscle the AI names against that exercise's "Muscles"
+   line. Flag a claim only if it names a muscle NOT listed for that exercise, or misstates its
+   role (for example, calling a stabiliser the primary target). Do NOT flag a correct muscle
+   just because the prose description happens to omit it.
 3. Safety: Note any missing warning or unsafe instruction that is relevant to what the user
    asked. Do not raise unrelated conditions.
 4. Verdict: state exactly one of [Safe], [Needs Correction], or [Dangerous].
