@@ -8,6 +8,7 @@ from ollama import chat
 from prompts import *
 from retrieval import retrieve_exercises, retrieve_exercise_names, retrieve_exercise_description
 from memory import Memory
+from llm import structured_chat
 from classification import classify_intent, classify_injured_muscle, condense_query
 import logging
 
@@ -237,27 +238,17 @@ def review_and_rewrite(user_input, response, review_prompt, rag_context=None):
     else:
         review_input = f"Original Question: {user_input}\n\nAI Response: {response}"
 
-    double_check = chat("llama3.1",
-                        messages=[
-                            {"role": "system", "content": review_prompt},
-                            {"role": "user", "content": review_input}
-                        ],
-                        options={
-                            "temperature": 0.1,
-                            "num_predict": 4096,
-                            "num_ctx": 8192
-                        },
-                        stream=False)
+    audit = structured_chat("llama3.1", review_prompt,
+                            review_input, REVIEW_SCHEMA)
+    corrected = audit["corrected_response"]
 
-    audit_text = double_check.message.content
-    logging.debug(f"Reviewer response: {audit_text}")
+    logging.debug(f"Reviewer response: {audit}")
 
     final_response = chat("llama3.1",
                           messages=[
                               {"role": "system", "content": FINAL_PROMPT},
                               {"role": "user", "content": (
-                                  f"Original Advice:\n{response}\n\n"
-                                  f"Review Audit:\n{audit_text}")}
+                                  f"Verified Advice:\n{corrected}")}
                           ],
                           options={
                               "temperature": 0.1,
