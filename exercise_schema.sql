@@ -4,6 +4,7 @@ CREATE TABLE "user" (
   "full_name" varchar(255) NOT NULL,
   "email" varchar(255) NOT NULL,
   "gender" varchar(1) NOT NULL,
+  "date_of_birth" date,
   "date_joined" timestamp NOT NULL DEFAULT (now())
 );
 
@@ -74,6 +75,21 @@ CREATE TABLE "foods" (
   "embedding"      vector(768)                 -- nomic-embed-text
 );
 CREATE INDEX ON "foods" ("food_code");
+
+-- UK dietary guideline values, from PHE "Government Dietary Recommendations"
+-- (2016), Tables 1 & 2 (macronutrients). Energy = EAR (SACN 2011); protein =
+-- RNI (COMA 1991); the rest are population targets. Look up a user's row with:
+--   WHERE sex = <user.gender> AND <age> BETWEEN age_min AND age_max
+CREATE TABLE "nutrient_reference" (
+  "id"         serial PRIMARY KEY,
+  "sex"        varchar(1) NOT NULL,       -- 'M' / 'F' (matches "user".gender)
+  "age_min"    integer NOT NULL,
+  "age_max"    integer NOT NULL,          -- 200 = open-ended (75+)
+  "nutrient"   varchar(20) NOT NULL,      -- energy_kcal, protein_g, fat_g, satfat_g, carb_g, free_sugars_g, fibre_g
+  "value"      real NOT NULL,
+  "limit_type" varchar(6) NOT NULL        -- 'target' | 'min' (at least) | 'max' (less than)
+);
+CREATE INDEX ON "nutrient_reference" ("sex", "age_min", "age_max");
 
 COMMENT ON COLUMN "exercises"."description" IS 'Description of the exercise';
 
