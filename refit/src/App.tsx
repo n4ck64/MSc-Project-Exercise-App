@@ -29,7 +29,7 @@ function App() {
           <Plans />
         </div>
         <div style={{ display: activeTab === "nutrition" ? "contents" : "none" }}>
-          <Plans />
+          <Nutrition />
         </div>
 
       </div>

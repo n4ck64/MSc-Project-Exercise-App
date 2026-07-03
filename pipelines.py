@@ -65,7 +65,7 @@ def run_main_pipeline(user_input):
 
     else:
         retrieved = None
-        response = chat("llama3", messages=[
+        response = chat("llama3.1", messages=[
             {"role": "system",
                 "content": "You are a helpful fitness assistant. Be conversational and brief."}] + Memory.chat_history[-10:]
             + [{"role": "user", "content": user_input}
@@ -241,7 +241,7 @@ def review_and_rewrite(user_input, response):
     audit_text = double_check.message.content
     logging.debug(f"Reviewer response: {audit_text}")
 
-    final_response = chat("llama3",
+    final_response = chat("llama3.1",
                           messages=[
                               {"role": "system", "content": FINAL_PROMPT},
                               {"role": "user", "content": (

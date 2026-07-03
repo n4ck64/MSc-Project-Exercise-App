@@ -5,15 +5,19 @@ The functions here classify information from text using llama3
 from ollama import chat
 from memory import Memory
 from prompts import EXTRACTION_PROMPT
+import re
 
 
 def classify_intent(user_input):
-    """Takes the user's initial query and classifies it in one of five categories:
+    """Takes the user's initial query and classifies it in one of seven categories:
     general exercise query, exercise query with an injury, making a general plan,
     making a general plan with an injury, or just chitchatting."""
 
-    response = chat("llama3", messages=[
-        {"role": "system", "content": f"""You are a classifier. 
+    INTENT_LABELS = ["EXERCISE_GENERAL", "EXERCISE_INJURY",
+                     "PLAN_GENERAL", "PLAN_INJURY", "NUTRITION", "NUTRITION_PLAN", "CHITCHAT"]
+
+    response = chat("llama3.1", messages=[
+        {"role": "system", "content": f"""You are a classifier.
         Output exactly one of these labels and nothing else:
         EXERCISE_GENERAL
         EXERCISE_INJURY
@@ -37,17 +41,25 @@ def classify_intent(user_input):
         "I want to bulk in a healthy way, what do you recommend? -> NUTRITION_PLAN"""},
         {"role": "user", "content": user_input}
     ])
-    return response.message.content.strip()
+
+    raw = response.message.content.upper()
+
+    for label in INTENT_LABELS:
+        if label in raw:
+            return label
+    return "CHITCHAT"
 
 
 def classify_injured_muscle(user_input):
     """Takes user input and if an injury is mentioned, 
     specifies which muscle is the injured one"""
 
-    response = chat("llama3", messages=[
+    response = chat("llama3.1", messages=[
         {"role": "system", "content": EXTRACTION_PROMPT},
         {"role": "user", "content": user_input}
     ])
     # result should be part of the list, if not return None
-    result = response.message.content.strip()
-    return int(result) if result.isdigit() else None
+
+    match = re.search(r"\d+", response.message.content)
+
+    return int(match.group()) if match else None
