@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 
 type Message = {
@@ -158,7 +159,7 @@ function Chat() {
                         </div>
                     </div>
                     : <div key={i} className={m.pulsing ? "bot-message pulsing" : "bot-message"}>
-                        {m.content}
+                        <ReactMarkdown>{m.content}</ReactMarkdown>
                     </div>
             ))}
 

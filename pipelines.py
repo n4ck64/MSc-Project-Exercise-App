@@ -9,7 +9,7 @@ from prompts import *
 from retrieval import retrieve_exercises, retrieve_exercise_names, retrieve_exercise_description
 from memory import Memory
 from llm import structured_chat
-from classification import classify_intent, classify_injured_muscle, condense_query
+from classification import classify_intent, classify_injured_muscle, condense_query, classify_target_muscle
 import logging
 
 
@@ -47,7 +47,10 @@ def run_main_pipeline(user_input):
             search_query, injured_muscle_id=injured_muscle_id)
 
     elif intent in ("EXERCISE_GENERAL", "PLAN_GENERAL"):
-        retrieved = retrieve_exercises(search_query)
+        target_muscle_id = classify_target_muscle(search_query)
+        logging.debug(f"Target Muscle: {target_muscle_id}")
+        retrieved = retrieve_exercises(
+            search_query, target_muscle_id=target_muscle_id)
         Memory.last_exercises = [
             line.replace("Exercise: ", "")
             for line in retrieved.split("\n")

@@ -11,37 +11,51 @@ conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
 cur = conn.cursor()
 
 
-def retrieve_exercises(query, top_k=3, injured_muscle_id=None):
-    """Queries the database to retrieve the three most relevant exercises
-    based on the user's input and the corresponding generated embedding"""
-    response = ollama.embed(model="nomic-embed-text",
-                            input=f"search_query: {query}")
+def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=None):
+    """Queries the database to retrieve the top_k most relevant exercises
+    based on the user's input and the corresponding generated embedding.
+    Optionally constrained to a target muscle and/or excluding an injured muscle"""
+
+    response = ollama.embed(model="nomic-embed-text", input=f"search_query: {query}")\
+
     embedding = response.embeddings[0]
+
+    conditions, params = [], []
+
+    if target_muscle_id:
+        conditions.append("""exercise_id IN (
+        SELECT exercise_id FROM muscles_exercised
+        WHERE muscle_id = %s AND role = 'Primary')""")
+        params.append(target_muscle_id)
+
     if injured_muscle_id:
-        cur.execute("""
-                    SELECT exercise_id, exercise_name, description, type, difficulty, equipment
-                    FROM exercises
-                    WHERE exercise_id NOT IN (
-                        SELECT exercise_id FROM muscles_exercised WHERE muscle_id = %s
-                        )
-                    ORDER BY embedding <=> %s::vector
-                    LIMIT %s
-                    """, (injured_muscle_id, embedding, top_k))
-    else:
-        cur.execute("""
-                    SELECT exercise_id, exercise_name, description, type, difficulty, equipment
-                    FROM exercises
-                    ORDER BY embedding <=> %s::vector
-                    LIMIT %s
-                    """, (embedding, top_k))
+        conditions.append("""exercise_id NOT IN (
+            SELECT exercise_id FROM muscles_exercised WHERE muscle_id = %s)""")
+        params.append(injured_muscle_id)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    cur.execute(f"""
+    SELECT exercise_id, exercise_name, description, type, difficulty, equipment
+    FROM exercise
+    {where}
+    ORDER BY embedding <=> %s::vector
+    LIMIT %s
+    """, params + [embedding, top_k])
 
     rows = cur.fetchall()
+
+    # if the target-muscle filter matched nothing, fall back to an unfiltered search
+    if not rows and target_muscle_id:
+        return retrieve_exercises(query, top_k=top_k, injured_muscle_id=injured_muscle_id)
+
     results = []
     for ex_id, name, description, type_, difficulty, equipment in rows:
         m = _muscles_for_exercise(ex_id)
         results.append(
             f"Exercise: {name}\n"
-            f"Type: {type_} | Difficulty: {difficulty} | Equipment: {equipment}\n"
+            f"Type: {type_}\n"
+            f"Difficulty: {difficulty}\n"
+            f"Equipment: {equipment}\n"
             f"Muscles — Primary: {m['Primary']} | Secondary: {m['Secondary']} | Stabilisers: {m['Stabiliser']}\n"
             f"Description: {description}")
     return "\n\n".join(results)

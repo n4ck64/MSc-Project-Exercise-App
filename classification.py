@@ -4,7 +4,8 @@ The functions here classify information from text using llama3.1
 
 from ollama import chat
 from memory import Memory
-from prompts import EXTRACTION_PROMPT, CONDENSE_PROMPT
+from prompts import TARGET_MUSCLE_PROMPT, CONDENSE_PROMPT, MUSCLE_SCHEMA
+from llm import structured_chat
 import re
 
 
@@ -55,7 +56,7 @@ def classify_injured_muscle(user_input):
     specifies which muscle is the injured one"""
 
     response = chat("llama3.1", messages=[
-        {"role": "system", "content": EXTRACTION_PROMPT},
+        {"role": "system", "content": TARGET_MUSCLE_PROMPT},
         {"role": "user", "content": user_input}
     ])
     # result should be part of the list, if not return None
@@ -63,6 +64,11 @@ def classify_injured_muscle(user_input):
     match = re.search(r"\d+", response.message.content)
 
     return int(match.group()) if match else None
+
+
+def classify_target_muscle(query):
+    """Returns the muscle_id the user wants to train, 0 if no muscle is mentioned"""
+    return structured_chat("llama3.1", TARGET_MUSCLE_PROMPT, query, MUSCLE_SCHEMA)["muscle_id"]
 
 
 def _clean_query(text):
