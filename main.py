@@ -9,6 +9,7 @@ from pydantic import BaseModel
 import logging
 from pipelines import run_main_pipeline, run_video_pipeline
 from vision import analyse_image, analyse_video
+from retrieval import list_exercises
 
 app = FastAPI()
 
@@ -70,3 +71,9 @@ async def upload_endpoint(file: UploadFile = File(...)):
         f.write(contents)
 
     return {"file_path": temp_path}
+
+
+@app.get("/exercises")
+def exercises_endpoint():
+    """returns all exercises as JSON for the Exercises page"""
+    return list_exercises()

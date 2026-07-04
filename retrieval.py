@@ -3,12 +3,14 @@ All database retrieval functions live here
 """
 
 from datetime import date
+import threading
 
 import ollama
 import psycopg2
 
 conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
 cur = conn.cursor()
+db_lock = threading.RLock()
 
 
 def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=None):
@@ -64,17 +66,21 @@ def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=
 def _muscles_for_exercise(exercise_id):
     """Returns an exercise's worked muscles grouped by role (Primary, Secondary,
     Stabiliser) as display strings, for grounding the answerer and reviewer."""
-    cur.execute("""
-                SELECT me.role, string_agg(m.muscle_name, ', ' ORDER BY m.muscle_name)
-                FROM muscles_exercised me
-                JOIN muscles m ON m.muscle_id = me.muscle_id
-                WHERE me.exercise_id = %s
-                GROUP BY me.role
-                """, (exercise_id,))
-    grouped = {"Primary": "none listed",
-               "Secondary": "none listed", "Stabiliser": "none listed"}
-    for role, names in cur.fetchall():
-        grouped[role] = names
+    with db_lock:
+        cur.execute("""
+                    SELECT me.role, string_agg(m.muscle_name, ', ' ORDER BY m.muscle_name)
+                    FROM muscles_exercised me
+                    JOIN muscles m ON m.muscle_id = me.muscle_id
+                    WHERE me.exercise_id = %s
+                    GROUP BY me.role
+                    """, (exercise_id,))
+
+        grouped = {"Primary": "none listed",
+                   "Secondary": "none listed", "Stabiliser": "none listed"}
+        # default values as none listed until appended
+
+        for role, names in cur.fetchall():
+            grouped[role] = names
     return grouped
 
 
@@ -242,3 +248,32 @@ def daily_gaps_for_food(user_id, food_name, grams=100):
         lines.append(f"  {labels.get(nutrient, nutrient)}: {g['consumed']} of "
                      f"{g['target']} ({g['limit_type']}) -> {note}")
     return "\n".join(lines)
+
+
+def list_exercises():
+    """Returns a list of dictrionaries of all exercises within the database for searching and browsing.
+    No embedding is needed here, just a simple SELECT SQL query.
+    """
+
+    with db_lock:
+        cur.execute("""
+        SELECT exercise_id, exercise_name, description, type, difficulty, equipment
+        FROM exercises
+        ORDER BY exercise_name
+        """)
+
+        rows = cur.fetchall()
+
+        exercises = []
+
+        for ex_id, name, description, type_, difficulty, equipment in rows:
+            exercises.append({
+                "id": ex_id,
+                "name": name,
+                "description": description,
+                "type": type_,
+                "difficulty": difficulty,
+                "equipment": equipment,
+                "muscles": _muscles_for_exercise(ex_id)
+            })
+    return exercises
