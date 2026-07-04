@@ -36,7 +36,7 @@ def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     cur.execute(f"""
     SELECT exercise_id, exercise_name, description, type, difficulty, equipment
-    FROM exercise
+    FROM exercises
     {where}
     ORDER BY embedding <=> %s::vector
     LIMIT %s

@@ -241,9 +241,9 @@ def review_and_rewrite(user_input, response, review_prompt, rag_context=None):
     else:
         review_input = f"Original Question: {user_input}\n\nAI Response: {response}"
 
-    audit = structured_chat("llama3.1", review_prompt,
+    audit = structured_chat("qwen2.5:7b", review_prompt,
                             review_input, REVIEW_SCHEMA)
-    corrected = audit["corrected_response"]
+    corrected = response if audit["verdict"] == "Safe" else audit["corrected_response"]
 
     logging.debug(f"Reviewer response: {audit}")
 
