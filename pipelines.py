@@ -52,7 +52,7 @@ def run_chat_pipeline(user_input):
         retrieved = retrieve_exercises(
             rewritten_query, target_muscle_id=target_muscle_ids)
         Memory.last_exercises = [
-            line.replace("Exercise: ", "")
+            line.replace("Exercise: ", "")  # this does
             for line in retrieved.split("\n")
             if line.startswith("Exercise: ")
         ]
@@ -277,4 +277,4 @@ def run_plan_pipeline(user_input, injuries=None):
     """runs the plan making loop and generation"""
     slots = structured_chat("llama3.1", INTAKE_PROMPT,
                             user_input, INTAKE_SCHEMA)
-    pass
+    for key, value in slots:

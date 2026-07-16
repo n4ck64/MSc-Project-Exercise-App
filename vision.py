@@ -9,27 +9,51 @@ import mediapipe as mp
 import cv2
 import os
 from memory import Memory
+from prompts import VISION_PROMPT
 import logging
+
+MAX_EDGE = 1024  # ~1,300 vision tokens worst case for qwen2.5vl
+
+
+def _load_downscaled(image_path):
+    """Re-encodes the image with its long edge capped, so the
+    vision token count stays bounded regardless of upload size."""
+    img = cv2.imread(image_path)
+    if img is None:  # format cv2 can't decode — send the original bytes
+        with open(image_path, "rb") as f:
+            return f.read()
+
+    h, w = img.shape[:2]
+    scale = MAX_EDGE / max(h, w)
+    if scale >= 1:  # already small enough
+        with open(image_path, "rb") as f:
+            return f.read()
+
+    img = cv2.resize(img, (int(w * scale), int(h * scale)),
+                     interpolation=cv2.INTER_AREA)
+    return cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])[1].tobytes()
 
 
 def analyse_image(image_path, user_input):
     """Takes uploaded images and gives feedback based on user query"""
-    with open(image_path, "rb") as f:
-        image_data = f.read()
+
+    image_data = _load_downscaled(image_path)
 
     logging.debug("=" * 100)
     logging.debug(f"User's message: {user_input}")
 
     response_content = ""
     yield "Analysing..."
-    response = chat("llava:13b", messages=[
+    response = chat("qwen2.5vl:7b", messages=[
+        {"role": "system", "content": VISION_PROMPT},
         {"role": "user",
-         "content": f"""You are a professional fitness coach. You are to judge the following image based on the user's
-        instruction {user_input}. 
-        Make your best assessment based on what you can see. Do not say "without more context" or "it's not possible", 
-        give your best judgment as a coach would. Do not refer to yourself or your role.""",
+         "content": user_input,
          "images": [image_data]}
-    ], stream=True)
+    ], options={
+        "temperature": 0.5,
+        "num_predict": 4096,
+        "num_ctx": 8192
+    }, stream=True)
 
     for chunk in response:
         token = chunk.message.content
