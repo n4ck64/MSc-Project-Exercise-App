@@ -2,6 +2,29 @@
 This module contains almost all prompts used in the app, along with all JSON schemas
 """
 
+INTENT_PROMPT = """You classify a message into exactly one intent.
+
+Labels:
+- EXERCISE_GENERAL: asking about exercises, no injury mentioned
+- EXERCISE_INJURY: asking about exercises with an injury or pain mentioned
+- PLAN_GENERAL: wants a workout plan, no injury mentioned
+- PLAN_INJURY: wants a workout plan with an injury or pain mentioned
+- NUTRITION: asking about food or nutrients
+- NUTRITION_PLAN: wants dietary advice or an eating approach for a goal
+- CHITCHAT: greetings and anything not covered above
+
+Use the previous conversation only to resolve context; classify the latest message.
+
+Examples:
+"what exercises can I do?" -> EXERCISE_GENERAL
+"I hurt my knee, what can I do?" -> EXERCISE_INJURY
+"make me a workout plan" -> PLAN_GENERAL
+"make me a plan, I have a bad back" -> PLAN_INJURY
+"what foods are rich in protein?" -> NUTRITION
+"I want to bulk in a healthy way, what do you recommend?" -> NUTRITION_PLAN
+"hi how are you" -> CHITCHAT"""
+
+
 SYSTEM_PROMPT = """
 You are a medical expert advising on exercise. Recommend ONLY exercises from the
 "Relevant exercises" list provided with the question. Do not suggest, name, or describe
@@ -18,7 +41,8 @@ Do not provide an introduction. Reference relevant details from earlier in the c
 CONDENSE_PROMPT = """You rewrite the user's latest message into a single, standalone search query.
 
 Rules:
-- If the latest message leans on the conversation (words like "it", "that", "those", "what about", "and with..."), rewrite it into a full query that stands on its own, using the conversation for context.
+- If the latest message leans on the conversation (words like "it", "that", "those", "what about", "and with..."),
+rewrite it into a full query that stands on its own, using the conversation for context.
 - If the latest message is already self-contained, return it unchanged.
 - Output ONLY the query. No preamble, no quotes, no explanation.
 - Resolve references only. Do NOT add equipment, muscles, constraints, or advice the user did not mention,
@@ -95,9 +119,23 @@ Forbidden phrases: 'revised version', 'updated advice', 'let me rewrite', 'here 
 'Here's a rewritten version of the original advice:', 'Note:', "I've rewritten", 'according to the rules',
 '(Note: The original advice has been rewritten to meet the rules.)', 'Let's get down to business!'"""
 
-TARGET_MUSCLE_PROMPT = """You identify which single muscle the user wants to TRAIN.
-Return the matching muscle_id from the list below, or 0 if the message names no specific
+TARGET_MUSCLE_PROMPT = """You identify which muscles the user wants to TRAIN.
+Return the matching muscle_id from the list below, or an empty list if the message names no specific
 muscle (a full-body or general request). Do not explain.
+
+101=Biceps, 102=Triceps, 103=Forearm flexors, 104=Forearm extensors,
+201=Anterior deltoid, 202=Lateral deltoid, 203=Posterior deltoid, 204=Rotator cuff,
+301=Pectoralis major, 302=Pectoralis minor,
+401=Upper trapezius, 402=Middle trapezius, 403=Lower trapezius, 404=Latissimus dorsi,
+405=Rhomboids, 406=Levator scapulae, 407=Erector spinae,
+501=Rectus abdominis, 502=Obliques, 503=Transversus abdominis,
+601=Gluteus maximus, 602=Gluteus medius, 603=Gluteus minimus,
+701=Quadriceps, 702=Hamstrings, 703=Adductors,
+801=Calves, 802=Shins, 803=Peroneals"""
+
+INJURED_MUSCLE_PROMPT = """You identify which muscles the user has INJURED.
+Return the matching muscle_id from the list below, or an empty list if the message names no specific
+muscle (generally feeling unwell). Do not explain.
 
 101=Biceps, 102=Triceps, 103=Forearm flexors, 104=Forearm extensors,
 201=Anterior deltoid, 202=Lateral deltoid, 203=Posterior deltoid, 204=Rotator cuff,
@@ -115,6 +153,28 @@ Provide evidence-based nutritional advice tailored to the user's fitness goals.
 Consider caloric needs, macronutrient balance, micronutrients, and meal timing where relevant.
 Do not provide advice for clinical medical conditions — recommend consulting a registered dietitian for those.
 Do not provide an introduction. Reference relevant details from earlier in the conversation."""
+
+INTAKE_PROMPT = """You extract workout-plan requirements from the user's message.
+Fill each field ONLY with information the user actually stated in this message.
+If a field is not mentioned, output null for it — never guess and never fill in defaults.
+
+Fields:
+- which_days: the specific weekdays the user wants to train, as lowercase day names.
+  "mon/wed/fri" or "MWF" -> ["monday", "wednesday", "friday"]; "weekends" -> ["saturday", "sunday"].
+  null if no specific days are named.
+- number_of_days: how many days per week they want to train. "3 times a week" -> 3.
+  null if not stated. Do not infer it from which_days.
+- goal: what they are training for. "build muscle" / "get big" / "bulk" -> "hypertrophy";
+  "get stronger" / "lift heavier" -> "strength"; "stay fit" / "tone up" / "be healthy" -> "general".
+  null if no goal is stated.
+- injury: the injured or painful body part, in the user's own words ("my knee is busted" -> "knee").
+  If the user explicitly says they have no injuries, output "none".
+  null only if injuries are not mentioned at all.
+
+Examples:
+"make me a 4 day plan to get big" -> {"which_days": null, "number_of_days": 4, "goal": "hypertrophy", "injury": null}
+"monday and thursday, nothing hurts" -> {"which_days": ["monday", "thursday"], "number_of_days": null, "goal": null, "injury": "none"}
+"i just want to get stronger but my shoulder is playing up" -> {"which_days": null, "number_of_days": null, "goal": "strength", "injury": "shoulder"}"""
 
 REVIEW_SCHEMA = {
     "type": "object",
@@ -137,12 +197,67 @@ REVIEW_SCHEMA = {
 MUSCLE_SCHEMA = {
     "type": "object",
     "properties": {
-        "muscle_id": {
-            "type": "integer",
-            "enum": [0, 101, 102, 103, 104, 201, 202, 203, 204, 301, 302,
-                     401, 402, 403, 404, 405, 406, 407, 501, 502, 503,
-                     601, 602, 603, 701, 702, 703, 801, 802, 803],
+        "muscle_ids": {
+            "type": "array",
+            "items": {"type": "integer",
+                      "enum": [101, 102, 103, 104, 201, 202, 203, 204, 301, 302,
+                               401, 402, 403, 404, 405, 406, 407, 501, 502, 503,
+                               601, 602, 603, 701, 702, 703, 801, 802, 803]},
         }
     },
-    "required": ["muscle_id"],
+    "required": ["muscle_ids"],
 }
+
+INTAKE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "which_days": {"type": ["array", "null"], "items": {
+            "type": "string",
+            "enum": ["monday", "tuesday", "wednesday", "thursday",
+                     "friday", "saturday", "sunday"]}},
+        "number_of_days": {"type": ["integer", "null"], "enum": [1, 2, 3, 4, 5, 6, 7]},
+        "goal": {"type": ["string", "null"], "enum": ["hypertrophy", "strength", "general"]},
+        "injury": {"type": ["string", "null"]},
+    },
+    "required": ["which_days", "number_of_days", "goal", "injury"]
+}
+# the nulls ensure that if the user has not mentoned a field it will not just fabricate one
+
+QUERY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "query": {"type": "string"}
+    },
+    "required": ["query"]
+}
+
+INTENT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "intent": {"type": "string",
+                   "enum": ["EXERCISE_GENERAL", "EXERCISE_INJURY",
+                            "PLAN_GENERAL", "PLAN_INJURY",
+                            "NUTRITION", "NUTRITION_PLAN", "CHITCHAT"]}
+    },
+    "required": ["intent"]
+}
+
+
+def plan_schema(allowed_names, allowed_days):
+    """after the INTAKE_SCHEMA has been filled out, this function makes the plan"""
+    return {
+        "type": "object",
+        "properties": {
+            "exercises": {"type": "array", "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "enum": allowed_names},
+                        "day": {"type": "string", "enum": allowed_days},
+                        "sets": {"type": "integer", "enum": [2, 3, 4, 5]},
+                        "reps": {"type": "integer", "enum": [3, 5, 6, 8, 10, 12, 15]},
+                },
+                "required": ["name", "day", "sets", "reps"]
+            }},
+        },
+        "required": ["exercises"]
+    }

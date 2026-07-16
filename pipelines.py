@@ -13,7 +13,7 @@ from classification import classify_intent, classify_injured_muscle, condense_qu
 import logging
 
 
-def run_main_pipeline(user_input):
+def run_chat_pipeline(user_input):
     """The main driver behind the chatting part of the app.
     Takes user input, clarifies intent, retrieves
     relevant exercises, reviews initial answer,
@@ -32,30 +32,38 @@ def run_main_pipeline(user_input):
 
     # resolve follow-ups into a standalone query up front, so both intent
     # classification and RAG retrieval operate on the resolved query
-    search_query = condense_query(user_input)
-    logging.debug(f"User input rewritten as: {search_query}")
+    rewritten_query = condense_query(user_input)
+    logging.debug(f"User input rewritten as: {rewritten_query}")
 
     # determines user intent before proceeding
-    intent = classify_intent(search_query)
+    intent = classify_intent(rewritten_query)
     logging.debug(f"Intent classified as: {intent}")
 
-    if intent in ("EXERCISE_INJURY", "PLAN_INJURY"):
-        injured_muscle_id = classify_injured_muscle(search_query)
-        logging.debug(f"Injured muscle: {injured_muscle_id}")
+    if intent in ("EXERCISE_INJURY"):
+        injured_muscle_ids = classify_injured_muscle(rewritten_query)
+        logging.debug(f"Injured muscle: {injured_muscle_ids}")
 
         retrieved = retrieve_exercises(
-            search_query, injured_muscle_id=injured_muscle_id)
+            rewritten_query, injured_muscle_id=injured_muscle_ids)
 
-    elif intent in ("EXERCISE_GENERAL", "PLAN_GENERAL"):
-        target_muscle_id = classify_target_muscle(search_query)
-        logging.debug(f"Target Muscle: {target_muscle_id}")
+    elif intent in ("EXERCISE_GENERAL"):
+        target_muscle_ids = classify_target_muscle(rewritten_query)
+        logging.debug(f"Target Muscle: {target_muscle_ids}")
         retrieved = retrieve_exercises(
-            search_query, target_muscle_id=target_muscle_id)
+            rewritten_query, target_muscle_id=target_muscle_ids)
         Memory.last_exercises = [
             line.replace("Exercise: ", "")
             for line in retrieved.split("\n")
             if line.startswith("Exercise: ")
         ]
+
+    elif intent == "PLAN_GENERAL":
+        Memory.plan_draft = "Ongoing"
+        run_plan_pipeline(rewritten_query)
+
+    elif intent == "PLAN_INJURY":
+        injured_muscle_ids = classify_injured_muscle(rewritten_query)
+        run_plan_pipeline(rewritten_query, injured_muscle_ids)
 
     elif intent in ("NUTRITION", "NUTRITION_PLAN"):
         retrieved = None  # nutrition talk requires no RAG
@@ -263,3 +271,10 @@ def review_and_rewrite(user_input, response, review_prompt, rag_context=None):
     for chunk in final_response:
         token = chunk.message.content
         yield token
+
+
+def run_plan_pipeline(user_input, injuries=None):
+    """runs the plan making loop and generation"""
+    slots = structured_chat("llama3.1", INTAKE_PROMPT,
+                            user_input, INTAKE_SCHEMA)
+    pass

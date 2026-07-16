@@ -7,7 +7,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import logging
-from pipelines import run_main_pipeline, run_video_pipeline
+from pipelines import run_chat_pipeline, run_video_pipeline
 from vision import analyse_image, analyse_video
 from retrieval import list_exercises
 
@@ -59,7 +59,7 @@ async def chat_endpoint(message: Message):
         return StreamingResponse(analyse_image(message.image_path, message.content), media_type="text/plain")
 
     # if no media is present, regular pipeline runs
-    return StreamingResponse(run_main_pipeline(message.content), media_type="text/plain")
+    return StreamingResponse(run_chat_pipeline(message.content), media_type="text/plain")
 
 
 @app.post("/upload")

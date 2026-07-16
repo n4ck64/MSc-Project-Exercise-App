@@ -2,90 +2,31 @@
 The functions here classify information from text using llama3.1
 """
 
-from ollama import chat
 from memory import Memory
-from prompts import TARGET_MUSCLE_PROMPT, CONDENSE_PROMPT, MUSCLE_SCHEMA
+from prompts import INTENT_PROMPT, TARGET_MUSCLE_PROMPT, INJURED_MUSCLE_PROMPT, CONDENSE_PROMPT, MUSCLE_SCHEMA, QUERY_SCHEMA, INTENT_SCHEMA
 from llm import structured_chat
-import re
 
 
 def classify_intent(user_input):
-    """Takes the user's initial query and classifies it in one of seven categories:
-    general exercise query, exercise query with an injury, making a general plan,
-    making a general plan with an injury, or just chitchatting."""
-
-    INTENT_LABELS = ["EXERCISE_GENERAL", "EXERCISE_INJURY",
-                     "PLAN_GENERAL", "PLAN_INJURY", "NUTRITION_PLAN", "NUTRITION", "CHITCHAT"]
-
-    response = chat("llama3.1", messages=[
-        {"role": "system", "content": f"""You are a classifier.
-        Output exactly one of these labels and nothing else:
-        EXERCISE_GENERAL
-        EXERCISE_INJURY
-        PLAN_GENERAL
-        PLAN_INJURY
-        NUTRITION
-        NUTRITION_PLAN
-        CHITCHAT
-
-        No explanation. No punctuation. No other text. Just the label.
-        Previous conversation:
-        {Memory.chat_history[-4:]} 
-
-        Examples:
-        "what exercises can I do?" -> EXERCISE_GENERAL
-        "I hurt my knee, what can I do?" -> EXERCISE_INJURY
-        "make me a workout plan" -> PLAN_GENERAL
-        "make me a plan, I have a bad back" -> PLAN_INJURY
-        "hi how are you" -> CHITCHAT
-        "what foods are rich in protein? -> NUTRITION
-        "I want to bulk in a healthy way, what do you recommend? -> NUTRITION_PLAN"""},
-        {"role": "user", "content": user_input}
-    ])
-
-    raw = response.message.content.upper()
-
-    for label in INTENT_LABELS:
-        if label in raw:
-            return label
-    return "CHITCHAT"
+    """Takes the user's query and classifies it into one of seven
+    intent labels, using recent history for context."""
+    history = "\n".join(
+        f'{m["role"]}: {m["content"]}' for m in Memory.chat_history[-4:])
+    return structured_chat(
+        "llama3.1", INTENT_PROMPT,
+        f"Previous conversation:\n{history}\n\nMessage to classify: {user_input}",
+        INTENT_SCHEMA)["intent"]
 
 
 def classify_injured_muscle(user_input):
     """Takes user input and if an injury is mentioned, 
-    specifies which muscle is the injured one"""
-
-    response = chat("llama3.1", messages=[
-        {"role": "system", "content": TARGET_MUSCLE_PROMPT},
-        {"role": "user", "content": user_input}
-    ])
-    # result should be part of the list, if not return None
-
-    match = re.search(r"\d+", response.message.content)
-
-    return int(match.group()) if match else None
+    specifies which muscles are injured"""
+    return structured_chat("llama3.1", INJURED_MUSCLE_PROMPT, user_input, MUSCLE_SCHEMA)
 
 
 def classify_target_muscle(query):
     """Returns the muscle_id the user wants to train, 0 if no muscle is mentioned"""
-    return structured_chat("llama3.1", TARGET_MUSCLE_PROMPT, query, MUSCLE_SCHEMA)["muscle_id"]
-
-
-def _clean_query(text):
-    """Strips any preamble/quotes a chatty model may add around the rewritten
-    query, leaving a bare string that is safe to embed. Returns "" if nothing
-    usable is left (the caller falls back to the original query)."""
-    # if the model prefaced with an explanation, keep the last non-empty line
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    text = lines[-1] if lines else ""
-    text = text.strip("'\"").strip()
-    # drop a leading "<label>:" the model might prepend
-    lowered = text.lower()
-    for prefix in ("standalone query:", "search query:", "rewritten query:", "query:"):
-        if lowered.startswith(prefix):
-            text = text[len(prefix):].strip("'\" ").strip()
-            break
-    return text
+    return structured_chat("llama3.1", TARGET_MUSCLE_PROMPT, query, MUSCLE_SCHEMA)["muscle_ids"]
 
 
 def condense_query(user_input):
@@ -97,9 +38,9 @@ def condense_query(user_input):
 
     history = "\n".join(
         f'{m["role"]}: {m["content"]}' for m in Memory.chat_history[-4:])
-    response = chat("llama3.1", messages=[
-        {"role": "system", "content": CONDENSE_PROMPT},
-        {"role": "user",
-         "content": f"Conversation:\n{history}\n\nLatest message: {user_input}"}
-    ])
-    return _clean_query(response.message.content) or user_input
+    result = structured_chat(
+        "llama3.1", CONDENSE_PROMPT,
+        f"Conversation:\n{history}\n\nLatest message: {user_input}",
+        QUERY_SCHEMA)
+
+    return result["query"].strip() or user_input

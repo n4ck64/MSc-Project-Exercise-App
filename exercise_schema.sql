@@ -53,6 +53,16 @@ CREATE TABLE "plan_exercises" (
   PRIMARY KEY ("plan_id", "exercise_id")
 );
 
+-- Per-user override of an exercise's difficulty. The global
+-- exercises.difficulty is the shared default; a row here wins for that user,
+-- letting people re-rate exercises they personally find easier or harder.
+CREATE TABLE "user_exercise_difficulty" (
+  "user_id" integer,
+  "exercise_id" integer,
+  "difficulty" varchar(6) NOT NULL,   -- Easy | Medium | Hard
+  PRIMARY KEY ("user_id", "exercise_id")
+);
+
 -- Nutrition reference data: CoFID 2021 (McCance & Widdowson's Composition of Foods).
 -- All values are per 100g of food, except alcoholic beverages which are per 100ml.
 -- CoFID sentinels are resolved on import: Tr (trace) -> 0, N/blank (unmeasured) -> NULL.
@@ -60,8 +70,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE "foods" (
   "id"             serial PRIMARY KEY,
-  "food_code"      varchar(10) NOT NULL,      -- CoFID code, e.g. '13-145'; NOT unique:
-                                              -- the source has a duplicate (13-669)
+  "food_code"      varchar(10) NOT NULL,      -- CoFID code, e.g. '13-145'
   "food_name"      varchar(255) NOT NULL,
   "description"    text,
   "food_group"     varchar(4),                -- CoFID group code, e.g. 'DG'
@@ -104,3 +113,7 @@ ALTER TABLE "plan_exercises" ADD FOREIGN KEY ("plan_id") REFERENCES "plans" ("pl
 ALTER TABLE "plan_exercises" ADD FOREIGN KEY ("exercise_id") REFERENCES "exercises" ("exercise_id") DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE "plans" ADD FOREIGN KEY ("user_id") REFERENCES "user" ("user_id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "user_exercise_difficulty" ADD FOREIGN KEY ("user_id") REFERENCES "user" ("user_id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "user_exercise_difficulty" ADD FOREIGN KEY ("exercise_id") REFERENCES "exercises" ("exercise_id") DEFERRABLE INITIALLY IMMEDIATE;

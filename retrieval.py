@@ -27,12 +27,12 @@ def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=
     if target_muscle_id:
         conditions.append("""exercise_id IN (
         SELECT exercise_id FROM muscles_exercised
-        WHERE muscle_id = %s AND role = 'Primary')""")
+        WHERE muscle_id = ANY(%s) AND role = 'Primary')""")
         params.append(target_muscle_id)
 
     if injured_muscle_id:
         conditions.append("""exercise_id NOT IN (
-            SELECT exercise_id FROM muscles_exercised WHERE muscle_id = %s)""")
+            SELECT exercise_id FROM muscles_exercised WHERE muscle_id = ANY(%s))""")
         params.append(injured_muscle_id)
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
@@ -251,7 +251,7 @@ def daily_gaps_for_food(user_id, food_name, grams=100):
 
 
 def list_exercises():
-    """Returns a list of dictrionaries of all exercises within the database for searching and browsing.
+    """Returns a list of dictionaries of all exercises within the database for searching and browsing.
     No embedding is needed here, just a simple SELECT SQL query.
     """
 
