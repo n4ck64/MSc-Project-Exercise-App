@@ -108,7 +108,14 @@ You will receive 'Verified Advice' and your job is to make it conversational and
 Rules:
 1. Your very first sentence must jump directly into addressing the advice.
 2. Keep the safety warnings intact but phrased naturally.
-3. Translate medical jargon into plain English.
+3. Translate anatomical and medical terms into everyday gym language. Never use the
+anatomical name when a common plain term exists. Apply this glossary:
+latissimus dorsi->lats; anterior deltoid->front delts; posterior deltoid->rear delts;
+lateral/medial deltoid->side delts; pectoralis major->chest; trapezius->traps;
+rectus abdominis->abs; erector spinae->lower back; gluteus maximus->glutes;
+quadriceps->quads; gastrocnemius/soleus->calves; biceps brachii->biceps;
+triceps brachii->triceps; rhomboids->upper back (between the shoulder blades);
+external obliques->obliques. For any term not listed, use the plainest accurate word.
 4. Do not add/remove any recommendations.
 5. Keep it under ~200 words, no repetitions. 
 6. Format in Markdown: short paragraphs, and when recommending multiple exercises present

@@ -22,6 +22,7 @@ def run_chat_pipeline(user_input):
     if user_input.strip().lower() == "/clear":
         # wipe the history for debugging
         Memory.clear()
+        Memory.plan_draft = None
         yield "Chat history cleared."
         return
 
@@ -59,11 +60,13 @@ def run_chat_pipeline(user_input):
 
     elif intent == "PLAN_GENERAL":
         Memory.plan_draft = "Ongoing"
-        run_plan_pipeline(rewritten_query)
+        yield from run_plan_pipeline(rewritten_query)
+        return
 
     elif intent == "PLAN_INJURY":
         injured_muscle_ids = classify_injured_muscle(rewritten_query)
-        run_plan_pipeline(rewritten_query, injured_muscle_ids)
+        yield from run_plan_pipeline(rewritten_query, injured_muscle_ids)
+        return
 
     elif intent in ("NUTRITION", "NUTRITION_PLAN"):
         retrieved = None  # nutrition talk requires no RAG
@@ -100,9 +103,12 @@ def run_chat_pipeline(user_input):
 
         return
 
-    logging.info(f"RAG retrieved: {retrieved}")
-    # below is the result of the SQL queries
-    rag_context = f"Relevant exercises:\n\n{retrieved}"
+    if Memory.plan_draft:
+        pass
+    else:
+        logging.info(f"RAG retrieved: {retrieved}")
+        # below is the result of the SQL queries
+        rag_context = f"Relevant exercises:\n\n{retrieved}"
 
     # a medical LLM responds given the user query and the SQL output
     yield "Thinking..."
@@ -277,4 +283,14 @@ def run_plan_pipeline(user_input, injuries=None):
     """runs the plan making loop and generation"""
     slots = structured_chat("llama3.1", INTAKE_PROMPT,
                             user_input, INTAKE_SCHEMA)
-    for key, value in slots:
+
+    if not slots["which_days"]:
+        yield "Which days would you like?"
+
+    if not slots["number_of_days"] and slots["which_days"]:
+        slots["number_of_days"] = len(slots["which_days"])
+
+    if not slots["goal"]:
+        yield "What's your goal? To get bigger, stronger or general wellbeing?"
+
+    return

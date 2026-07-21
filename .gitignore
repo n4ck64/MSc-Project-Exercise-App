@@ -1,4 +1,7 @@
 *.gguf
+.env
+.env.*
+*.key
 __pycache__/
 *.pyc
 LITERATURE FOR MSC/
