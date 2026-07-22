@@ -36,6 +36,8 @@ import os
 import re
 import statistics
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -180,8 +182,17 @@ def complete(system, user, model, provider="ollama", options=None):
         headers={"Authorization": f"Bearer {key}",
                  "Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        return json.loads(r.read())["choices"][0]["message"]["content"].strip()
+    # Retry transient network failures (timeout, dropped connection, 5xx) so a
+    # single blip — e.g. the laptop briefly sleeping — doesn't kill a multi-hour run.
+    last = None
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return json.loads(r.read())["choices"][0]["message"]["content"].strip()
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            last = e
+            time.sleep(2 ** attempt)  # 1s, 2s, 4s, 8s backoff
+    raise last
 
 
 # The 8B sometimes echoes the trigger keyword ("chest pain", "niggle") instead of
@@ -297,7 +308,7 @@ def main():
         print(f"resuming — {len(seen_keys)} pairs already in {args.out}")
 
     plan = build_plan(target)
-    ratios, written, dropped_dupe, dropped_len, dropped_same = [], 0, 0, 0, 0
+    ratios, written, dropped_dupe, dropped_len, dropped_same, dropped_err = [], 0, 0, 0, 0, 0
 
     with args.out.open("a") as fh:
 
@@ -324,22 +335,31 @@ def main():
                 dropped_dupe += 1
                 continue
 
-            rejected = scrub(complete(BARE_PROMPT, query,
-                             args.model, args.provider))
+            # A pair needs both a local call and (usually) an API call. If either
+            # fails after its own retries, skip THIS pair and keep going — never let
+            # one bad request end a multi-hour run. It's append-only, so a skipped
+            # pair just gets regenerated on the next resume.
+            try:
+                rejected = scrub(complete(BARE_PROMPT, query,
+                                 args.model, args.provider))
 
-            if args.scratch:
-                # From-scratch chosen. Kept for comparison — it produces a much
-                # larger style/length delta than editing does.
-                chosen = complete(POLICY_PROMPT, query,
-                                  args.model, args.provider)
-            else:
-                # Default: chosen is a minimal edit OF rejected, so the two differ
-                # by disclaimer behaviour and little else.
-                editor = args.editor or args.model
-                chosen = complete(build_editor_prompt(tier),
-                                  f"User message:\n{query}\n\nAnswer to correct:\n{rejected}",
-                                  editor, args.editor_provider or args.provider)
-            chosen = scrub(chosen)
+                if args.scratch:
+                    # From-scratch chosen. Kept for comparison — it produces a much
+                    # larger style/length delta than editing does.
+                    chosen = complete(POLICY_PROMPT, query,
+                                      args.model, args.provider)
+                else:
+                    # Default: chosen is a minimal edit OF rejected, so the two differ
+                    # by disclaimer behaviour and little else.
+                    editor = args.editor or args.model
+                    chosen = complete(build_editor_prompt(tier),
+                                      f"User message:\n{query}\n\nAnswer to correct:\n{rejected}",
+                                      editor, args.editor_provider or args.provider)
+                chosen = scrub(chosen)
+            except Exception as e:
+                dropped_err += 1
+                print(f"  skip (error): {type(e).__name__}: {str(e)[:80]}")
+                continue
 
             if unchanged(chosen, rejected):
                 dropped_same += 1
@@ -375,7 +395,7 @@ def main():
 
     print(f"\nwrote {written} pairs to {args.out}")
     print(f"dropped: {dropped_dupe} duplicate, {dropped_len} length, "
-          f"{dropped_same} unchanged-by-editor")
+          f"{dropped_same} unchanged-by-editor, {dropped_err} error")
     if ratios:
         ratios.sort()
         over = sum(r > LENGTH_RATIO_TOLERANCE for r in ratios) / len(ratios)
