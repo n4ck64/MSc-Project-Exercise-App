@@ -22,8 +22,13 @@ def run_chat_pipeline(user_input):
     if user_input.strip().lower() == "/clear":
         # wipe the history for debugging
         Memory.clear()
-        Memory.plan_draft = None
         yield "Chat history cleared."
+        return
+
+    # a plan already in progress captures the next reply, whatever its intent —
+    # so answers like "mon wed fri" aren't reclassified as a new request
+    if Memory.plan_slots is not None:
+        yield from run_plan_pipeline(user_input)
         return
 
     logging.debug("=" * 100)
@@ -58,14 +63,9 @@ def run_chat_pipeline(user_input):
             if line.startswith("Exercise: ")
         ]
 
-    elif intent == "PLAN_GENERAL":
-        Memory.plan_draft = "Ongoing"
-        yield from run_plan_pipeline(rewritten_query)
-        return
-
-    elif intent == "PLAN_INJURY":
-        injured_muscle_ids = classify_injured_muscle(rewritten_query)
-        yield from run_plan_pipeline(rewritten_query, injured_muscle_ids)
+    elif intent in ("PLAN_GENERAL", "PLAN_INJURY"):
+        # raw input (not condensed) — INTAKE extraction reads the user's own words
+        yield from run_plan_pipeline(user_input)
         return
 
     elif intent in ("NUTRITION", "NUTRITION_PLAN"):
@@ -85,7 +85,9 @@ def run_chat_pipeline(user_input):
 
     else:
         retrieved = None
-        response = chat("llama3.1", messages=[
+        # refit-dpo = the DPO-tuned Llama 3.1 (disclaimer calibration). Only the answerer/
+        # rewriter stages use it; the structured/JSON + classifier stages stay on base llama3.1.
+        response = chat("refit-dpo", messages=[
             {"role": "system",
                 "content": "You are a helpful fitness assistant. Be conversational and brief."}] + Memory.chat_history[-10:]
             + [{"role": "user", "content": user_input}
@@ -103,7 +105,7 @@ def run_chat_pipeline(user_input):
 
         return
 
-    if Memory.plan_draft:
+    if Memory.plan_slots:
         pass
     else:
         logging.info(f"RAG retrieved: {retrieved}")
@@ -112,7 +114,7 @@ def run_chat_pipeline(user_input):
 
     # a medical LLM responds given the user query and the SQL output
     yield "Thinking..."
-    initial_response = chat("llama3.1",
+    initial_response = chat("refit-dpo",  # DPO-tuned answerer (see note above)
                             # the system prompt
                             messages=[{"role": "system", "content": SYSTEM_PROMPT}] +
                             # context from the last 5 messages
@@ -261,7 +263,7 @@ def review_and_rewrite(user_input, response, review_prompt, rag_context=None):
 
     logging.debug(f"Reviewer response: {audit}")
 
-    final_response = chat("llama3.1",
+    final_response = chat("refit-dpo",  # DPO-tuned rewriter (see note in run_chat_pipeline)
                           messages=[
                               {"role": "system", "content": FINAL_PROMPT},
                               {"role": "user", "content": (
@@ -279,18 +281,89 @@ def review_and_rewrite(user_input, response, review_prompt, rag_context=None):
         yield token
 
 
-def run_plan_pipeline(user_input, injuries=None):
-    """runs the plan making loop and generation"""
-    slots = structured_chat("llama3.1", INTAKE_PROMPT,
-                            user_input, INTAKE_SCHEMA)
+WEEK = ["monday", "tuesday", "wednesday", "thursday",
+        "friday", "saturday", "sunday"]
 
-    if not slots["which_days"]:
-        yield "Which days would you like?"
 
-    if not slots["number_of_days"] and slots["which_days"]:
+def _spread_days(n):
+    """Pick n weekdays spread across the week when the user gave a count but not
+    specific days (3 -> mon/wed/fri)."""
+    if n >= 7:
+        return WEEK
+    step = 7 / n
+    return [WEEK[int(i * step)] for i in range(n)]
+
+
+def run_plan_pipeline(user_input):
+    """Multi-turn plan builder. Accumulates INTAKE slots in Memory across turns,
+    asks one combined clarifying question until goal + days are known, then builds
+    the plan JSON by constrained decoding and stores it for the Plans page."""
+    new = structured_chat("llama3.1", INTAKE_PROMPT, user_input, INTAKE_SCHEMA)
+
+    # merge this turn's non-null answers into the running slots
+    slots = Memory.plan_slots or {"which_days": None, "number_of_days": None,
+                                  "goal": None, "injury": None,
+                                  "focus": None, "equipment": None}
+    for field, value in new.items():
+        if value is not None:
+            slots[field] = value
+    Memory.plan_slots = slots
+
+    if slots["which_days"] and not slots["number_of_days"]:
         slots["number_of_days"] = len(slots["which_days"])
 
+    # still missing what we need to build? ask one combined question and wait.
+    missing = []
     if not slots["goal"]:
-        yield "What's your goal? To get bigger, stronger or general wellbeing?"
+        missing.append("your goal (bigger, stronger, or general wellbeing)")
+    if not slots["which_days"] and not slots["number_of_days"]:
+        missing.append("how many days a week (or which days) you can train")
+    if missing:
+        yield "Before I build your plan, tell me " + " and ".join(missing) + "."
+        return
 
-    return
+    # enough info — retrieve candidate exercises (injury-aware) and build the plan
+    days = slots["which_days"] or _spread_days(slots["number_of_days"])
+    injured_ids = None
+    if slots["injury"] and slots["injury"] != "none":
+        injured_ids = classify_injured_muscle(slots["injury"])
+
+    # honour the requested body-part focus by turning it into target muscle ids,
+    # exactly like the general exercise pipeline does
+    target_ids = classify_target_muscle(slots["focus"]) if slots["focus"] else None
+
+    # default to what most people own when they don't say (dumbbell + bodyweight)
+    equipment = slots["equipment"] or ["Dumbbell", "Body weight"]
+
+    # scale candidates with the week: more days need more exercises to fill
+    top_k = max(15, len(days) * 4)
+    query = f"{slots['focus'] or ''} {slots['goal']} training exercises".strip()
+    context = retrieve_exercises(query, top_k=top_k, target_muscle_id=target_ids,
+                                 injured_muscle_id=injured_ids, equipment=equipment)
+    names = [line.replace("Exercise: ", "")
+             for line in context.split("\n") if line.startswith("Exercise: ")]
+
+    plan = structured_chat(
+        "llama3.1",
+        PLAN_PROMPT + f"\n\nGoal: {slots['goal']}\nDays: {', '.join(days)}",
+        context, plan_schema(names, days))
+
+    Memory.finished_plan = plan
+    Memory.plan_slots = None  # loop complete
+    yield _plan_to_markdown(plan)
+    yield "\n\n*Open the [Plans](#plans) tab to track it.*"
+
+
+def _plan_to_markdown(plan):
+    """Render the built plan as markdown (headings + bullet lists) for the chat.
+    Days in Mon->Sun order; plain react-markdown renders this without extra plugins."""
+    lines = ["**Your weekly plan**\n"]
+    for day in WEEK:
+        day_exercises = [e for e in plan["exercises"] if e["day"] == day]
+        if not day_exercises:
+            continue
+        lines.append(f"**{day.capitalize()}**")
+        for e in day_exercises:
+            lines.append(f"- {e['name']} — {e['sets']}×{e['reps']}")
+        lines.append("")
+    return "\n".join(lines)

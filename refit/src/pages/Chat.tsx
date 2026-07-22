@@ -15,7 +15,7 @@ type Choices = {
     names: string[]
 } | null
 
-function Chat() {
+function Chat({ goToPlans }: { goToPlans: () => void }) {
     const [pendingImage, setPendingImage] = useState<string | null>(null)
     const [pendingVideoChoice, setPendingVideoChoice] = useState<string | null>(null)
     const [pendingFileType, setPendingFileType] = useState<"image" | "video" | null>(null)
@@ -159,7 +159,16 @@ function Chat() {
                         </div>
                     </div>
                     : <div key={i} className={m.pulsing ? "bot-message pulsing" : "bot-message"}>
-                        <ReactMarkdown>{m.content}</ReactMarkdown>
+                        <ReactMarkdown
+                            components={{
+                                // intercept our own "#plans" link: switch tabs in-app
+                                // (and refresh Plans) instead of navigating the browser
+                                a: ({ href, children }) =>
+                                    href === "#plans"
+                                        ? <a href="#plans" onClick={e => { e.preventDefault(); goToPlans() }}>{children}</a>
+                                        : <a href={href}>{children}</a>
+                            }}
+                        >{m.content}</ReactMarkdown>
                     </div>
             ))}
 

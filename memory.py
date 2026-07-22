@@ -9,12 +9,15 @@ class Memory:
     chat_history = []
     video_summary = None
     video_probable_exercises = []
-    plan_draft = None
+    plan_slots = None      # accumulating intake slots; None = no plan in progress
+    finished_plan = None   # the built plan JSON the Plans page fetches
 
     @classmethod
     def clear(cls):
         """cleans all chat history for current session"""
         cls.chat_history = []
+        cls.plan_slots = None
+        cls.finished_plan = None
 
     @classmethod
     def reset_video(cls):

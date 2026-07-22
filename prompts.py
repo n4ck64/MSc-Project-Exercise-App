@@ -130,6 +130,10 @@ TARGET_MUSCLE_PROMPT = """You identify which muscles the user wants to TRAIN.
 Return the matching muscle_id from the list below, or an empty list if the message names no specific
 muscle (a full-body or general request). Do not explain.
 
+A broad body-region word maps to ALL the muscle_ids in that region:
+- "legs" / "lower body" / "leg day" -> 601, 602, 603, 701, 702, 703, 801 (glutes, quads,
+  hamstrings, adductors and calves together)
+
 101=Biceps, 102=Triceps, 103=Forearm flexors, 104=Forearm extensors,
 201=Anterior deltoid, 202=Lateral deltoid, 203=Posterior deltoid, 204=Rotator cuff,
 301=Pectoralis major, 302=Pectoralis minor,
@@ -177,11 +181,40 @@ Fields:
 - injury: the injured or painful body part, in the user's own words ("my knee is busted" -> "knee").
   If the user explicitly says they have no injuries, output "none".
   null only if injuries are not mentioned at all.
+- focus: the body part the user wants to emphasise, in their own words ("focuses on legs" -> "legs",
+  "upper body day" -> "upper body"). null if they name no particular focus.
+- equipment: which equipment they want to use, as a list drawn ONLY from:
+  "Barbell", "Dumbbell", "Body weight", "Machine", "Cable", "Smith machine", "Suspension trainer", "Weights".
+  "barbell/dumbbell" -> ["Barbell", "Dumbbell"]; "just bodyweight" -> ["Body weight"]. null if not stated.
+
+A vague request that names no days, no count and no goal must return ALL nulls —
+do NOT invent a day count or a goal to be helpful. That is the most common mistake.
+focus and equipment are also null unless the user actually named them.
 
 Examples:
-"make me a 4 day plan to get big" -> {"which_days": null, "number_of_days": 4, "goal": "hypertrophy", "injury": null}
-"monday and thursday, nothing hurts" -> {"which_days": ["monday", "thursday"], "number_of_days": null, "goal": null, "injury": "none"}
-"i just want to get stronger but my shoulder is playing up" -> {"which_days": null, "number_of_days": null, "goal": "strength", "injury": "shoulder"}"""
+"make me a plan" -> {"which_days": null, "number_of_days": null, "goal": null, "injury": null, "focus": null, "equipment": null}
+"i want to get in shape" -> {"which_days": null, "number_of_days": null, "goal": null, "injury": null, "focus": null, "equipment": null}
+"make me a 4 day plan to get big" -> {"which_days": null, "number_of_days": 4, "goal": "hypertrophy", "injury": null, "focus": null, "equipment": null}
+"monday and thursday, nothing hurts" -> {"which_days": ["monday", "thursday"], "number_of_days": null, "goal": null, "injury": "none", "focus": null, "equipment": null}
+"make me a barbell/dumbbell plan that focuses on legs" -> {"which_days": null, "number_of_days": null, "goal": null, "injury": null, "focus": "legs", "equipment": ["Barbell", "Dumbbell"]}
+"stronger, bodyweight only, arms" -> {"which_days": null, "number_of_days": null, "goal": "strength", "injury": null, "focus": "arms", "equipment": ["Body weight"]}"""
+
+PLAN_PROMPT = """You build a weekly workout plan as JSON.
+
+You are given the user's goal, the exact days they train, and a list of Approved
+exercises. Assign exercises across those days ONLY, using ONLY the Approved names.
+
+Rules:
+- Spread work sensibly across the days — don't stack the same muscle group two days
+  running; aim for balanced coverage over the week.
+- Give each training day roughly 3-5 exercises.
+- Prefer a different exercise each time. Avoid repeating an exercise across days.
+  The ONLY exception: a major compound lift (squat, bench press, deadlift) may appear
+  at most twice in the week. Every other exercise appears at most once.
+- Choose sets and reps to match the goal:
+  strength -> 4-5 sets, 3-6 reps; hypertrophy -> 3-4 sets, 8-12 reps;
+  general -> 2-3 sets, 10-15 reps.
+- Use every training day. Do not invent exercises or days outside those provided."""
 
 VISION_PROMPT = """You are an experienced personal trainer giving a frank,
 good-natured visual assessment in a fitness coaching app. The person in the
@@ -234,11 +267,22 @@ INTAKE_SCHEMA = {
             "type": "string",
             "enum": ["monday", "tuesday", "wednesday", "thursday",
                      "friday", "saturday", "sunday"]}},
-        "number_of_days": {"type": ["integer", "null"], "enum": [1, 2, 3, 4, 5, 6, 7]},
-        "goal": {"type": ["string", "null"], "enum": ["hypertrophy", "strength", "general"]},
+        # null MUST be in the enum, or constrained decoding can never emit it and the
+        # model is forced to invent a value even when the user stated none.
+        "number_of_days": {"type": ["integer", "null"], "enum": [1, 2, 3, 4, 5, 6, 7, None]},
+        "goal": {"type": ["string", "null"], "enum": ["hypertrophy", "strength", "general", None]},
         "injury": {"type": ["string", "null"]},
+        # free-text body part to emphasise ("legs", "chest"); classify_target_muscle
+        # turns it into muscle_ids at build time. null = no preference (full body).
+        "focus": {"type": ["string", "null"]},
+        # which equipment the user has / wants, matched to the DB's equipment names.
+        # null = not stated; the pipeline then defaults to dumbbell + bodyweight.
+        "equipment": {"type": ["array", "null"], "items": {
+            "type": "string",
+            "enum": ["Barbell", "Dumbbell", "Body weight", "Machine",
+                     "Cable", "Smith machine", "Suspension trainer", "Weights"]}},
     },
-    "required": ["which_days", "number_of_days", "goal", "injury"]
+    "required": ["which_days", "number_of_days", "goal", "injury", "focus", "equipment"]
 }
 # the nulls ensure that if the user has not mentoned a field it will not just fabricate one
 

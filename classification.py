@@ -19,9 +19,10 @@ def classify_intent(user_input):
 
 
 def classify_injured_muscle(user_input):
-    """Takes user input and if an injury is mentioned, 
-    specifies which muscles are injured"""
-    return structured_chat("llama3.1", INJURED_MUSCLE_PROMPT, user_input, MUSCLE_SCHEMA)
+    """Takes user input and if an injury is mentioned, returns the list of injured
+    muscle_ids (empty list if none) — same shape as classify_target_muscle, so it
+    can be passed straight to retrieve_exercises' ANY(%s) filter."""
+    return structured_chat("llama3.1", INJURED_MUSCLE_PROMPT, user_input, MUSCLE_SCHEMA)["muscle_ids"]
 
 
 def classify_target_muscle(query):

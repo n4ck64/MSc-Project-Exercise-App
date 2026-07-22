@@ -10,6 +10,7 @@ import logging
 from pipelines import run_chat_pipeline, run_video_pipeline
 from vision import analyse_image, analyse_video
 from retrieval import list_exercises
+from memory import Memory
 
 app = FastAPI()
 
@@ -77,3 +78,10 @@ async def upload_endpoint(file: UploadFile = File(...)):
 def exercises_endpoint():
     """returns all exercises as JSON for the Exercises page"""
     return list_exercises()
+
+
+@app.get("/plan")
+def plan_endpoint():
+    """returns the most recently built workout plan as JSON for the Plans page.
+    null until the user has completed the plan flow in chat."""
+    return Memory.finished_plan

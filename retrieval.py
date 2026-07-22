@@ -13,10 +13,12 @@ cur = conn.cursor()
 db_lock = threading.RLock()
 
 
-def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=None):
+def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=None,
+                       equipment=None):
     """Queries the database to retrieve the top_k most relevant exercises
     based on the user's input and the corresponding generated embedding.
-    Optionally constrained to a target muscle and/or excluding an injured muscle"""
+    Optionally constrained to a target muscle, a set of allowed equipment,
+    and/or excluding an injured muscle"""
 
     response = ollama.embed(model="nomic-embed-text", input=f"search_query: {query}")\
 
@@ -29,6 +31,10 @@ def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=
         SELECT exercise_id FROM muscles_exercised
         WHERE muscle_id = ANY(%s) AND role = 'Primary')""")
         params.append(target_muscle_id)
+
+    if equipment:
+        conditions.append("equipment = ANY(%s)")
+        params.append(equipment)
 
     if injured_muscle_id:
         conditions.append("""exercise_id NOT IN (
@@ -46,9 +52,11 @@ def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=
 
     rows = cur.fetchall()
 
-    # if the target-muscle filter matched nothing, fall back to an unfiltered search
+    # if the target-muscle filter matched nothing, drop it but keep the equipment
+    # constraint (the user still cares which kit they have) and search again
     if not rows and target_muscle_id:
-        return retrieve_exercises(query, top_k=top_k, injured_muscle_id=injured_muscle_id)
+        return retrieve_exercises(query, top_k=top_k, injured_muscle_id=injured_muscle_id,
+                                  equipment=equipment)
 
     results = []
     for ex_id, name, description, type_, difficulty, equipment in rows:
