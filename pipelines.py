@@ -119,8 +119,15 @@ def run_chat_pipeline(user_input):
                             messages=[{"role": "system", "content": SYSTEM_PROMPT}] +
                             # context from the last 5 messages
                             Memory.chat_history[-10:]
-                            # the user query plus the SQL results
-                            + [{"role": "user", "content": f"{rag_context}\n\nUser question: {user_input}"}],
+                            # the user query plus the SQL results — reminder is repeated here,
+                            # right next to the retrieved list, since an instruction stated only
+                            # once in the system prompt is easy for an 8B model to override once
+                            # a wall of exercise data is sitting in front of it
+                            + [{"role": "user", "content":
+                                f"{rag_context}\n(background grounding only — do not name a "
+                                f"specific exercise unless the user is choosing what to do; "
+                                f"describe by category otherwise)"
+                                f"\n\nUser question: {user_input}"}],
                             options={
                                 # how creative the model can get -> 0.0 is static, 1.0 is unpredictable
                                 "temperature": 0.7,
