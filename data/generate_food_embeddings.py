@@ -7,10 +7,16 @@ is not unique in CoFID) and commits in batches so the ~2,900 embeds are
 resumable: the WHERE embedding IS NULL guard means a re-run only fills gaps.
 """
 
+import getpass
+import os
+
 import ollama
 import psycopg2
 
-conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
+conn = psycopg2.connect(
+    dbname=os.environ.get("REFIT_DB_NAME", "exercise_database"),
+    user=os.environ.get("REFIT_DB_USER", getpass.getuser()),
+)
 cur = conn.cursor()
 
 cur.execute(

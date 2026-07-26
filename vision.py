@@ -9,7 +9,7 @@ import mediapipe as mp
 import cv2
 import os
 from memory import Memory
-from prompts import VISION_PROMPT
+from prompts_and_schemas import VISION_PROMPT
 import logging
 
 MAX_EDGE = 1024  # ~1,300 vision tokens worst case for qwen2.5vl

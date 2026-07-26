@@ -5,10 +5,13 @@ and a three-model reponse pipeline (medical answerer, medical reviewer,
 conversational rewriter)
 """
 from ollama import chat
-from prompts import *
-from retrieval import retrieve_exercises, retrieve_exercise_names, retrieve_exercise_description
+from prompts_and_schemas import *
+from retrieval import (retrieve_exercises, retrieve_exercise_names,
+                       retrieve_exercise_description, retrieve_foods,
+                       get_food_macros, daily_gaps_for_food, resolve_food_name)
 from memory import Memory
 from llm import structured_chat
+from user_data import clear_exercise_ratings
 from classification import classify_intent, classify_injured_muscle, condense_query, classify_target_muscle
 import logging
 
@@ -22,6 +25,8 @@ def run_chat_pipeline(user_input):
     if user_input.strip().lower() == "/clear":
         # wipe the history for debugging
         Memory.clear()
+        # user_id hardcoded until auth; keeps test runs clean
+        clear_exercise_ratings(1)
         yield "Chat History Cleared."
         return
 
@@ -74,7 +79,7 @@ def run_chat_pipeline(user_input):
 
     elif intent in ("NUTRITION", "NUTRITION_PLAN"):
         retrieved = None  # nutrition talk requires no RAG
-        for token in run_nutrition_pipeline(user_input):
+        for token in run_nutrition_pipeline(rewritten_query):
             response_content += token
             yield token
 
@@ -229,20 +234,86 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
         ]
 
 
+def route_nutrition(user_input):
+    """Constrained-decoding tool router for the nutrition pipeline: llama3.1 picks
+    one tool + args from NUTRITION_ROUTER_SCHEMA, and Python dispatches to the
+    matching retrieval.py function. Returns a readable context string to ground the
+    answerer (same role rag_context plays for exercises), or None when the query
+    needs no database lookup."""
+    route = structured_chat("llama3.1", NUTRITION_ROUTER_PROMPT,
+                            user_input, NUTRITION_ROUTER_SCHEMA)
+    logging.debug(f"Nutrition router: {route}")
+
+    tool = route["tool"]
+    food_name = route["food_name"]
+    # caller default when the user named no amount
+    grams = route["grams"] or 100
+
+    if tool == "food_macros":
+        if not food_name:
+            return None
+        macros = get_food_macros(food_name, grams)
+        if macros is None:
+            # exact ILIKE missed — a casual name ("chicken breast") against a verbose
+            # CoFID entry. Resolve to the closest canonical name and retry, which
+            # keeps the gram-scaling a raw semantic search would drop.
+            resolved = resolve_food_name(food_name)
+            if resolved:
+                macros = get_food_macros(resolved, grams)
+                food_name = resolved
+        if macros is None:
+            return f"No nutrition data found for '{food_name}'."
+        lines = "\n".join(f"  {k}: {v}" for k, v in macros.items())
+
+        final = f"Macros for {grams}g of {food_name}:\n{lines}"
+
+        logging.debug(f"Final Macros: {final}")
+        return final
+
+    if tool == "daily_gaps":
+        if not food_name:
+            return None
+        # probe with the exact lookup; on a miss, resolve the casual name so
+        # daily_gaps_for_food (also exact-match internally) still finds the food.
+        if get_food_macros(food_name) is None:
+            food_name = resolve_food_name(food_name) or food_name
+        # user_id hardcoded until auth
+        logging.debug(
+            f"Found Gaps: {daily_gaps_for_food(1, food_name, grams)}")
+        return daily_gaps_for_food(1, food_name, grams)
+
+    if tool == "food_search":
+        logging.debug(retrieve_foods(user_input))
+        return retrieve_foods(user_input)
+
+    return None  # tool == "none": general nutrition talk, no lookup needed
+
+
 def run_nutrition_pipeline(user_input):
     """when the intent is classified as NUTRITION or NUTRITION_PLAN,
-    the LLM does not do RAG and instead shifts to a nutritionist role"""
+    the LLM shifts to a nutritionist role, grounded by whichever food-database
+    tool route_nutrition selects for the query"""
     yield "Hungry..."
 
     logging.debug(f"User's message: {user_input}")
+
+    context = route_nutrition(user_input)
+    if context:
+        user_message = (f"Reference data from the UK food database:\n{context}\n"
+                        f"(the ONLY trustworthy source for this food's figures — use these "
+                        f"exact numbers, do not estimate your own or assume a different food, "
+                        f"variant, or preparation than the one named above)"
+                        f"\n\nUser question: {user_input}")
+    else:
+        user_message = f"User question: {user_input}"
 
     initial_response = chat("medical-expert:latest",
                             # the system prompt
                             messages=[{"role": "system", "content": NUTRITION_PROMPT}] +
                             # context from the last 5 messages
                             Memory.chat_history[-10:]
-                            # the user query plus the SQL results
-                            + [{"role": "user", "content": f"User question: {user_input}"}],
+                            # the user query plus any retrieved food-database context
+                            + [{"role": "user", "content": user_message}],
                             options={
                                 "temperature": 0.7,
                                 "num_predict": 8192,
@@ -253,17 +324,19 @@ def run_nutrition_pipeline(user_input):
     initial_text = initial_response.message.content
     logging.debug(f"Nutrition first response: {initial_text}")
 
-    yield from review_and_rewrite(user_input, initial_text, NUTRITION_REVIEW_PROMPT)
+    yield from review_and_rewrite(user_input, initial_text, NUTRITION_REVIEW_PROMPT,
+                                  context, context_label="Reference data")
 
 
-def review_and_rewrite(user_input, response, review_prompt, rag_context=None):
+def review_and_rewrite(user_input, response, review_prompt, rag_context=None,
+                       context_label="Approved exercises"):
     """takes the LLM's initial response, reviews it under a list of criteria,
     and rewrites it to be conversational and layman-friendly"""
 
     yield "Reviewing..."
 
     if rag_context:
-        review_input = (f"Approved exercises:\n{rag_context}\n\n"
+        review_input = (f"{context_label}:\n{rag_context}\n\n"
                         f"Original Question: {user_input}\n\nAI Response: {response}")
     else:
         review_input = f"Original Question: {user_input}\n\nAI Response: {response}"

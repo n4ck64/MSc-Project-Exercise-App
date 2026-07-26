@@ -3,7 +3,7 @@ The functions here classify information from text using llama3.1
 """
 
 from memory import Memory
-from prompts import INTENT_PROMPT, TARGET_MUSCLE_PROMPT, INJURED_MUSCLE_PROMPT, CONDENSE_PROMPT, MUSCLE_SCHEMA, QUERY_SCHEMA, INTENT_SCHEMA
+from prompts_and_schemas import INTENT_PROMPT, TARGET_MUSCLE_PROMPT, INJURED_MUSCLE_PROMPT, CONDENSE_PROMPT, MUSCLE_SCHEMA, QUERY_SCHEMA, INTENT_SCHEMA
 from llm import structured_chat
 
 

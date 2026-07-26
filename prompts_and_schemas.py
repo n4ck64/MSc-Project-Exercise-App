@@ -100,12 +100,19 @@ Do not contradict anything the user stated about their own body, goals, or injur
 NUTRITION_REVIEW_PROMPT = """You are a registered dietitian auditing an AI-generated
 nutrition answer for accuracy and safety.
 
+You may be given Reference data retrieved from the UK food database (CoFID) for a specific
+food. Treat it as the ONLY trustworthy source for that food's exact figures and identity — if
+the AI response states a different number, or answers as if a different food/variant/
+preparation was retrieved, that is a factual_error: quote the wrong figure from the AI response
+AND the correct one from the Reference data.
+
 Most answers are already correct — an empty "issues" list is the normal result. Only flag a
 clear, concrete error.
 
 "issues": one entry per genuine problem, each with a category and a detail:
-  - "factual_error": an inaccurate nutrition claim, outdated guideline, or unsupported
-    calorie/macronutrient/micronutrient figure.
+  - "factual_error": a nutrition claim, figure, or food identity that contradicts the Reference
+    data, or (when no Reference data was supplied) an unsupported calorie/macronutrient/
+    micronutrient figure or outdated guideline.
   - "safety": unsafe advice for a general audience, or a clinical dietary claim that should be
     referred to a registered dietitian or doctor.
 
@@ -132,7 +139,7 @@ triceps brachii->triceps; rhomboids->upper back (between the shoulder blades);
 external obliques->obliques. For any term not listed, use the plainest accurate word.
 4. Do not add/remove any recommendations.
 5. Keep it under ~200 words, no repetitions. 
-6. Format in Markdown: short paragraphs, and when recommending multiple exercises present
+6. Format in Markdown: short paragraphs, and when recommending multiple items present
 them as a bulleted list rather than also naming them in a sentence.
 Forbidden phrases: 'revised version', 'updated advice', 'let me rewrite', 'here is a correction',
 'Hello', 'Sure thing', 'Great question', 'Of course', 'Absolutely', "Let's get started!",
@@ -177,7 +184,59 @@ You are a qualified nutritionist and dietitian.
 Provide evidence-based nutritional advice tailored to the user's fitness goals.
 Consider caloric needs, macronutrient balance, micronutrients, and meal timing where relevant.
 Do not provide advice for clinical medical conditions — recommend consulting a registered dietitian for those.
+
+When a "Reference data" block from the UK food database is provided, it names the EXACT food
+entry retrieved for the user's query — treat its figures as the ONLY trustworthy source for
+that food. Use its numbers exactly; never substitute your own estimate, and never answer as if
+a different variant or preparation (raw vs cooked, with/without skin, a different cut) was
+retrieved than the one actually named. If the named food doesn't match what the user meant, say
+so plainly rather than silently answering about a different food.
+
 Do not provide an introduction. Reference relevant details from earlier in the conversation."""
+
+# Constrained-decoding tool router for the nutrition pipeline. llama3.1 picks one
+# tool and extracts its args; pipelines.route_nutrition dispatches to the matching
+# retrieval.py function and feeds the result to the answerer as grounding context.
+NUTRITION_ROUTER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "tool": {"type": "string",
+                 "enum": ["food_macros", "daily_gaps", "food_search", "none"]},
+        # null MUST be allowed here, or constrained decoding can never emit it and
+        # the model is forced to fabricate a food/amount even when the user named
+        # none — the same bug INTAKE_SCHEMA guards against.
+        "food_name": {"type": ["string", "null"]},
+        "grams": {"type": ["integer", "null"]},
+    },
+    "required": ["tool", "food_name", "grams"]
+}
+
+NUTRITION_ROUTER_PROMPT = """You are a routing layer for a nutrition assistant.
+Given the user's message, pick the SINGLE tool that best serves it and extract its
+arguments. Return only the JSON.
+
+Tools:
+- food_macros: the user names a SPECIFIC food and wants its nutritional breakdown
+  (calories / protein / fat / carbs). food_name = the food; grams = the amount they
+  state, or null if they give none (the caller then defaults to 100g).
+- daily_gaps: the user wants to know how a specific food fits their DAILY dietary
+  targets ("how does X fit my day", "is 100g of rice enough carbs for me").
+  food_name and grams as above.
+- food_search: the user wants food SUGGESTIONS or ideas by property, not one named
+  food ("high-protein snacks", "what should I eat post-workout"). food_name and
+  grams are null — the caller searches on the raw message.
+- none: general nutrition talk needing no database lookup ("is intermittent fasting
+  healthy", "should I cut sugar"). food_name and grams are null.
+
+If the user names no specific food, do NOT invent one — use food_search or none and
+set food_name and grams to null.
+
+Examples:
+"how much protein is in 150g of chicken breast" -> {"tool": "food_macros", "food_name": "chicken breast", "grams": 150}
+"macros for an avocado" -> {"tool": "food_macros", "food_name": "avocado", "grams": null}
+"how does 200g of white rice fit into my day" -> {"tool": "daily_gaps", "food_name": "white rice", "grams": 200}
+"what are some high protein snacks" -> {"tool": "food_search", "food_name": null, "grams": null}
+"is keto actually healthy" -> {"tool": "none", "food_name": null, "grams": null}"""
 
 INTAKE_PROMPT = """You extract workout-plan requirements from the user's message.
 Fill each field ONLY with information the user actually stated in this message.

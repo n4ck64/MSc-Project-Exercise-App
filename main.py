@@ -7,6 +7,8 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import logging
+import os
+import tempfile
 from pipelines import run_chat_pipeline, run_video_pipeline
 from vision import analyse_image, analyse_video
 from retrieval import list_exercises
@@ -67,7 +69,7 @@ async def chat_endpoint(message: Message):
 async def upload_endpoint(file: UploadFile = File(...)):
     """uploads uploaded file to pipeline"""
     contents = await file.read()
-    temp_path = f"/tmp/temp_{file.filename}"
+    temp_path = os.path.join(tempfile.gettempdir(), f"temp_{file.filename}")
     with open(temp_path, "wb") as f:
         f.write(contents)
 

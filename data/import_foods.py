@@ -10,6 +10,9 @@ handling:
     as 0, and 'N' (present but unmeasured) or blanks become NULL.
 """
 
+import getpass
+import os
+
 import numpy as np
 import pandas as pd
 import psycopg2
@@ -54,7 +57,10 @@ def nan_to_none(v):
     return None if (isinstance(v, float) and pd.isna(v)) else v
 
 
-conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
+conn = psycopg2.connect(
+    dbname=os.environ.get("REFIT_DB_NAME", "exercise_database"),
+    user=os.environ.get("REFIT_DB_USER", getpass.getuser()),
+)
 cur = conn.cursor()
 
 # Reset the table so re-running is idempotent. The surrogate `id` PK means

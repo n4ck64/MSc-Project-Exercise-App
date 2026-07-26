@@ -3,12 +3,19 @@ All database retrieval functions live here
 """
 
 from datetime import date
+import getpass
+import os
 import threading
 
 import ollama
 import psycopg2
 
-conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
+# DB name/role are env-overridable so the app runs on any machine; the defaults
+# match a local Postgres where the role equals the OS username (peer auth).
+conn = psycopg2.connect(
+    dbname=os.environ.get("REFIT_DB_NAME", "exercise_database"),
+    user=os.environ.get("REFIT_DB_USER", getpass.getuser()),
+)
 cur = conn.cursor()
 db_lock = threading.RLock()
 
@@ -158,6 +165,24 @@ def retrieve_foods(query, top_k=3):
     return "\n\n".join(results)
 
 
+def resolve_food_name(query, top_k=1):
+    """Maps a casual food name ("chicken breast") to the closest canonical CoFID
+    food_name via embedding search, so the exact-match lookups (get_food_macros,
+    daily_gaps_for_food) can retry after an ILIKE miss without losing gram-scaling.
+    Returns the best-matching food_name, or None if the table is empty."""
+    response = ollama.embed(model="nomic-embed-text",
+                            input=f"search_query: {query}")
+    embedding = response.embeddings[0]
+    cur.execute("""
+                SELECT food_name
+                FROM foods
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s
+                """, (embedding, top_k))
+    row = cur.fetchone()
+    return row[0] if row else None
+
+
 def retrieve_nutrient_targets(sex, age):
     """Returns the UK daily dietary guideline values (PHE 2016) for a user of
     the given sex ('M'/'F') and age, as a {nutrient: (value, limit_type)} dict.
@@ -285,3 +310,23 @@ def list_exercises():
                 "muscles": _muscles_for_exercise(ex_id)
             })
     return exercises
+
+
+def get_exercise_ratings(user_id, exercise_id=None):
+    """Returns a user's self-reported exercise difficulty ratings as an
+    {exercise_id: difficulty} dict. Pass exercise_id to fetch a single one
+    (dict with 0 or 1 entry); omit it for all of the user's ratings."""
+    with db_lock:
+        if exercise_id is None:
+            cur.execute("""
+                        SELECT exercise_id, difficulty
+                        FROM user_exercise_difficulty
+                        WHERE user_id = %s
+                        """, (user_id,))
+        else:
+            cur.execute("""
+                        SELECT exercise_id, difficulty
+                        FROM user_exercise_difficulty
+                        WHERE user_id = %s AND exercise_id = %s
+                        """, (user_id, exercise_id))
+        return {ex_id: difficulty for ex_id, difficulty in cur.fetchall()}

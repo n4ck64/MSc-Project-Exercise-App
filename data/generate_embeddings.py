@@ -1,7 +1,12 @@
+import getpass
+import os
 import psycopg2
 import ollama
 
-conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
+conn = psycopg2.connect(
+    dbname=os.environ.get("REFIT_DB_NAME", "exercise_database"),
+    user=os.environ.get("REFIT_DB_USER", getpass.getuser()),
+)
 cur = conn.cursor()
 
 # Fetch all exercises without embeddings

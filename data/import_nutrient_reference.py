@@ -21,6 +21,9 @@ Note: for ages 4-6 the source splits fibre (15 g at 4y, 20 g at 5-6y). We store
 the 5-6y value (20 g) for the whole band; treat age 4 as ~15 g if that matters.
 """
 
+import getpass
+import os
+
 import psycopg2
 
 # Age bands as (age_min, age_max); 200 stands in for the open-ended 75+ band.
@@ -54,7 +57,10 @@ for nutrient, (limit_type, per_band) in DATA.items():
         rows.append(("M", age_min, age_max, nutrient, float(male), limit_type))
         rows.append(("F", age_min, age_max, nutrient, float(female), limit_type))
 
-conn = psycopg2.connect(dbname="exercise_database", user="nikolaytinev")
+conn = psycopg2.connect(
+    dbname=os.environ.get("REFIT_DB_NAME", "exercise_database"),
+    user=os.environ.get("REFIT_DB_USER", getpass.getuser()),
+)
 cur = conn.cursor()
 
 cur.execute("TRUNCATE nutrient_reference RESTART IDENTITY")
