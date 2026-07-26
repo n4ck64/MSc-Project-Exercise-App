@@ -22,7 +22,7 @@ def run_chat_pipeline(user_input):
     if user_input.strip().lower() == "/clear":
         # wipe the history for debugging
         Memory.clear()
-        yield "Chat history cleared."
+        yield "Chat History Cleared."
         return
 
     # a plan already in progress captures the next reply, whatever its intent —
@@ -38,11 +38,15 @@ def run_chat_pipeline(user_input):
 
     # resolve follow-ups into a standalone query up front, so both intent
     # classification and RAG retrieval operate on the resolved query
+    yield "Commencing..."
     rewritten_query = condense_query(user_input)
     logging.debug(f"User input rewritten as: {rewritten_query}")
 
     # determines user intent before proceeding
     intent = classify_intent(rewritten_query)
+
+    yield "Classifying User Query..."
+
     logging.debug(f"Intent classified as: {intent}")
 
     if intent in ("EXERCISE_INJURY"):
@@ -305,6 +309,8 @@ def run_plan_pipeline(user_input):
     """Multi-turn plan builder. Accumulates INTAKE slots in Memory across turns,
     asks one combined clarifying question until goal + days are known, then builds
     the plan JSON by constrained decoding and stores it for the Plans page."""
+
+    yield "Making Plan..."
     new = structured_chat("llama3.1", INTAKE_PROMPT, user_input, INTAKE_SCHEMA)
 
     # merge this turn's non-null answers into the running slots
@@ -319,7 +325,7 @@ def run_plan_pipeline(user_input):
     if slots["which_days"] and not slots["number_of_days"]:
         slots["number_of_days"] = len(slots["which_days"])
 
-    # still missing what we need to build? ask one combined question and wait.
+    # if it is still missing what it needs to build, it asks one combined question and waits
     missing = []
     if not slots["goal"]:
         missing.append("your goal (bigger, stronger, or general wellbeing)")
@@ -337,7 +343,8 @@ def run_plan_pipeline(user_input):
 
     # honour the requested body-part focus by turning it into target muscle ids,
     # exactly like the general exercise pipeline does
-    target_ids = classify_target_muscle(slots["focus"]) if slots["focus"] else None
+    target_ids = classify_target_muscle(
+        slots["focus"]) if slots["focus"] else None
 
     # default to what most people own when they don't say (dumbbell + bodyweight)
     equipment = slots["equipment"] or ["Dumbbell", "Body weight"]
@@ -366,11 +373,13 @@ def _plan_to_markdown(plan):
     Days in Mon->Sun order; plain react-markdown renders this without extra plugins."""
     lines = ["**Your weekly plan**\n"]
     for day in WEEK:
-        day_exercises = [e for e in plan["exercises"] if e["day"] == day]
+        day_exercises = [
+            exercise for exercise in plan["exercises"] if exercise["day"] == day]
         if not day_exercises:
             continue
         lines.append(f"**{day.capitalize()}**")
-        for e in day_exercises:
-            lines.append(f"- {e['name']} — {e['sets']}×{e['reps']}")
+        for exercise in day_exercises:
+            lines.append(
+                f"- {exercise['name']} — {exercise['sets']}×{exercise['reps']}")
         lines.append("")
     return "\n".join(lines)

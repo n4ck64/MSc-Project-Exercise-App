@@ -31,7 +31,7 @@ function Chat({ goToPlans }: { goToPlans: () => void }) {
     }, [messages])   // runs every time messages changes
 
     const STATUS_TOKENS = new Set([
-        "Thinking...", "Reviewing...", "Analysing...", "Processing...", "Hungry...", "Uploading..."
+        "Commencing...", "Classifying User Query...", "Thinking...", "Reviewing...", "Analysing...", "Processing...", "Hungry...", "Uploading...", "Making Plan..."
     ])
 
 
