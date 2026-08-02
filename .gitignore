@@ -10,3 +10,4 @@ refit.log
 *.pdf
 docs/encryption-design-note.md
 evaluation/
+.claude/launch.json

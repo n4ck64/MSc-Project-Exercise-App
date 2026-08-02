@@ -15,7 +15,7 @@ type Choices = {
     names: string[]
 } | null
 
-function Chat({ goToPlans }: { goToPlans: () => void }) {
+function Chat({ goToPlans, userId }: { goToPlans: () => void, userId: number }) {
     const [pendingImage, setPendingImage] = useState<string | null>(null)
     const [pendingVideoChoice, setPendingVideoChoice] = useState<string | null>(null)
     const [pendingFileType, setPendingFileType] = useState<"image" | "video" | null>(null)
@@ -29,6 +29,14 @@ function Chat({ goToPlans }: { goToPlans: () => void }) {
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [messages])   // runs every time messages changes
+
+    // switching the dev user resets backend conversational state (see
+    // run_chat_pipeline), so clear the visible transcript to match — otherwise
+    // the previous persona's messages linger over a backend that's forgotten them
+    useEffect(() => {
+        setMessages([])
+        setChoices(null)
+    }, [userId])
 
     const STATUS_TOKENS = new Set([
         "Commencing...", "Classifying User Query...", "Thinking...", "Reviewing...", "Analysing...", "Processing...", "Hungry...", "Uploading...", "Making Plan..."
@@ -74,6 +82,7 @@ function Chat({ goToPlans }: { goToPlans: () => void }) {
                 image_path: pendingImage,
                 file_type: pendingFileType,
                 video_choice: choice,
+                user_id: userId,
             }),
         })
 

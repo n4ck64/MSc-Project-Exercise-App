@@ -152,16 +152,17 @@ function MonthlyView({ plan, progress, onChange }: {
 }
 
 
-function Plans({ refreshSignal }: { refreshSignal: number }) {
+function Plans({ refreshSignal, userId }: { refreshSignal: number, userId: number }) {
     const [plan, setPlan] = useState<Plan | null>(null)
     const [progress, setProgress] = useState<Record<string, Progress>>({})
     const [view, setView] = useState<"weekly" | "monthly">("weekly")
 
-    // fetch the plan on mount AND whenever refreshSignal changes (App bumps it when
-    // a new plan is built), then seed a progress entry for every exercise
+    // fetch the plan on mount, whenever refreshSignal changes (App bumps it when
+    // a new plan is built or edited), AND whenever the active user changes, then
+    // seed a progress entry for every exercise
     useEffect(() => {
         async function load() {
-            const res = await fetch("http://localhost:8000/plan")
+            const res = await fetch(`http://localhost:8000/plan?user_id=${userId}`)
             const data = await res.json()
             setPlan(data)
             if (data) {
@@ -173,7 +174,7 @@ function Plans({ refreshSignal }: { refreshSignal: number }) {
             }
         }
         load()
-    }, [refreshSignal])
+    }, [refreshSignal, userId])
 
     // update ONE row immutably (same move as Exercises' toggleFilter)
     function onChange(key: string, patch: Partial<Progress>) {

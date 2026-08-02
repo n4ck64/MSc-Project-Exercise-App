@@ -3,12 +3,16 @@ This module contains almost all prompts used in the app, along with all JSON sch
 """
 
 INTENT_PROMPT = """You classify a message into exactly one intent.
-
 Labels:
 - EXERCISE_GENERAL: asking about exercises, no injury mentioned
 - EXERCISE_INJURY: asking about exercises with an injury or pain mentioned
-- PLAN_GENERAL: wants a workout plan, no injury mentioned
-- PLAN_INJURY: wants a workout plan with an injury or pain mentioned
+- PLAN_GENERAL: wants a NEW workout plan built, no injury mentioned. Any request
+  to make / build / create / generate a plan, or a bare "workout plan", is
+  PLAN_GENERAL — even with no other detail.
+- PLAN_INJURY: wants a new workout plan built, with an injury or pain mentioned
+- PLAN_EDIT: wants to CHANGE an EXISTING plan via an explicit change verb
+  (move, swap, reschedule, add, remove, increase/decrease sets or reps). It names
+  a specific tweak to a plan that already exists — it never builds one from scratch.
 - NUTRITION: asking about food or nutrients
 - NUTRITION_PLAN: wants dietary advice or an eating approach for a goal
 - CHITCHAT: greetings and anything not covered above
@@ -19,11 +23,15 @@ Examples:
 "what exercises can I do?" -> EXERCISE_GENERAL
 "I hurt my knee, what can I do?" -> EXERCISE_INJURY
 "make me a workout plan" -> PLAN_GENERAL
+"workout plan" -> PLAN_GENERAL
+"build me a 3 day plan" -> PLAN_GENERAL
 "make me a plan, I have a bad back" -> PLAN_INJURY
+"move Friday's workout to Saturday" -> PLAN_EDIT
+"swap the bench press to Tuesday" -> PLAN_EDIT
+"add 5 more reps to my deadlift" -> PLAN_EDIT
 "what foods are rich in protein?" -> NUTRITION
 "I want to bulk in a healthy way, what do you recommend?" -> NUTRITION_PLAN
 "hi how are you" -> CHITCHAT"""
-
 
 SYSTEM_PROMPT = """
 You are a medical expert advising on exercise. First answer exactly what the user asked —
@@ -194,9 +202,7 @@ so plainly rather than silently answering about a different food.
 
 Do not provide an introduction. Reference relevant details from earlier in the conversation."""
 
-# Constrained-decoding tool router for the nutrition pipeline. llama3.1 picks one
-# tool and extracts its args; pipelines.route_nutrition dispatches to the matching
-# retrieval.py function and feeds the result to the answerer as grounding context.
+
 NUTRITION_ROUTER_SCHEMA = {
     "type": "object",
     "properties": {
@@ -340,16 +346,13 @@ INTAKE_SCHEMA = {
             "type": "string",
             "enum": ["monday", "tuesday", "wednesday", "thursday",
                      "friday", "saturday", "sunday"]}},
-        # null MUST be in the enum, or constrained decoding can never emit it and the
-        # model is forced to invent a value even when the user stated none.
+
         "number_of_days": {"type": ["integer", "null"], "enum": [1, 2, 3, 4, 5, 6, 7, None]},
         "goal": {"type": ["string", "null"], "enum": ["hypertrophy", "strength", "general", None]},
         "injury": {"type": ["string", "null"]},
-        # free-text body part to emphasise ("legs", "chest"); classify_target_muscle
-        # turns it into muscle_ids at build time. null = no preference (full body).
+
         "focus": {"type": ["string", "null"]},
-        # which equipment the user has / wants, matched to the DB's equipment names.
-        # null = not stated; the pipeline then defaults to dumbbell + bodyweight.
+
         "equipment": {"type": ["array", "null"], "items": {
             "type": "string",
             "enum": ["Barbell", "Dumbbell", "Body weight", "Machine",
@@ -357,7 +360,6 @@ INTAKE_SCHEMA = {
     },
     "required": ["which_days", "number_of_days", "goal", "injury", "focus", "equipment"]
 }
-# the nulls ensure that if the user has not mentoned a field it will not just fabricate one
 
 QUERY_SCHEMA = {
     "type": "object",
@@ -372,11 +374,103 @@ INTENT_SCHEMA = {
     "properties": {
         "intent": {"type": "string",
                    "enum": ["EXERCISE_GENERAL", "EXERCISE_INJURY",
-                            "PLAN_GENERAL", "PLAN_INJURY",
+                            "PLAN_GENERAL", "PLAN_INJURY", "PLAN_EDIT",
                             "NUTRITION", "NUTRITION_PLAN", "CHITCHAT"]}
     },
     "required": ["intent"]
 }
+
+
+PLAN_EDIT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "edits": {"type": "array", "items": {
+            "type": "object",
+            "properties": {
+                "op": {"type": "string",
+                       "enum": ["move_day", "move_exercise", "relative_param",
+                                "absolute_param", "add_exercise", "remove_exercise"]},
+                "exercise_name": {"type": ["string", "null"]},
+                "from_day": {"type": ["string", "null"], "enum": [
+                    "monday", "tuesday", "wednesday", "thursday",
+                    "friday", "saturday", "sunday", None]},
+                "to_day": {"type": ["string", "null"], "enum": [
+                    "monday", "tuesday", "wednesday", "thursday",
+                    "friday", "saturday", "sunday", None]},
+                "field": {"type": ["string", "null"], "enum": ["sets", "reps", None]},
+
+                "amount": {"type": ["integer", "null"]},
+            },
+            "required": ["op", "exercise_name", "from_day", "to_day", "field", "amount"]
+        }}
+    },
+    "required": ["edits"]
+}
+
+PLAN_EDIT_PROMPT = """You extract edits to the user's EXISTING workout plan from their
+message. Return one entry in "edits" per distinct change requested — a single message
+can ask for several ("move bench press to Tuesday and add 5 reps to squats" -> two edits).
+Only extract what the user actually asked to change; never invent an edit.
+
+Operations:
+- move_day: move EVERY exercise from one day to another.
+  from_day and to_day required; exercise_name/field/amount null.
+- move_exercise: move ONE named exercise to a different day.
+  exercise_name and to_day required; from_day/field/amount null.
+- relative_param: change sets or reps BY a delta ("add 5 reps", "one more set",
+  "2 fewer reps", "increase reps BY 3"). exercise_name, field, and amount required —
+  amount is SIGNED (positive to add, negative to remove). from_day/to_day null.
+- absolute_param: set sets or reps TO an exact value ("make the deadlift 12 reps",
+  "increase the squat sets TO 5", "lower reps TO 8", "bump lunge sets up to 4").
+  exercise_name, field, and amount required — amount is the target value, not a delta.
+  from_day/to_day null. NOTE: "increase/raise/bump/lower/decrease ... TO N" is a
+  TARGET (absolute_param, amount=N), NOT a delta — only "BY N" / "N more" / "N fewer"
+  / "add N" is relative_param.
+- add_exercise: add a NEW exercise that is not currently in the plan.
+  exercise_name and to_day required; from_day/field/amount null.
+- remove_exercise: delete an exercise from the plan entirely ("remove squats",
+  "i hate lunges, take them out", "drop the deadlift"). exercise_name required;
+  from_day/to_day/field/amount null. NEVER model a removal as sets or reps 0.
+
+Examples:
+"move Friday's workout to Saturday" -> {"edits": [{"op": "move_day", "exercise_name": null, "from_day": "friday", "to_day": "saturday", "field": null, "amount": null}]}
+"swap the bench press to Tuesday" -> {"edits": [{"op": "move_exercise", "exercise_name": "bench press", "from_day": null, "to_day": "tuesday", "field": null, "amount": null}]}
+"add 5 more reps to the deadlift" -> {"edits": [{"op": "relative_param", "exercise_name": "deadlift", "from_day": null, "to_day": null, "field": "reps", "amount": 5}]}
+"make the deadlift 12 reps" -> {"edits": [{"op": "absolute_param", "exercise_name": "deadlift", "from_day": null, "to_day": null, "field": "reps", "amount": 12}]}
+"increase lunge sets to 5 and decrease reps to 5" -> {"edits": [{"op": "absolute_param", "exercise_name": "lunge", "from_day": null, "to_day": null, "field": "sets", "amount": 5}, {"op": "absolute_param", "exercise_name": "lunge", "from_day": null, "to_day": null, "field": "reps", "amount": 5}]}
+"add lunges on Thursday" -> {"edits": [{"op": "add_exercise", "exercise_name": "lunges", "from_day": null, "to_day": "thursday", "field": null, "amount": null}]}
+"i hate squats, remove them" -> {"edits": [{"op": "remove_exercise", "exercise_name": "squats", "from_day": null, "to_day": null, "field": null, "amount": null}]}
+"replace the squats with bench press" -> {"edits": [{"op": "remove_exercise", "exercise_name": "squats", "from_day": null, "to_day": null, "field": null, "amount": null}, {"op": "add_exercise", "exercise_name": "bench press", "from_day": null, "to_day": null, "field": null, "amount": null}]}
+"move bench press to Tuesday and add 5 reps to squats" -> {"edits": [{"op": "move_exercise", "exercise_name": "bench press", "from_day": null, "to_day": "tuesday", "field": null, "amount": null}, {"op": "relative_param", "exercise_name": "squats", "from_day": null, "to_day": null, "field": "reps", "amount": 5}]}"""
+
+
+CONTINUATION_SCHEMA = {
+    "type": "object",
+    "properties": {"is_answer": {"type": "boolean"}},
+    "required": ["is_answer"],
+}
+
+CONTINUATION_PROMPT = """An assistant asked the user a clarifying question while editing
+their workout plan. Decide whether the user's reply ANSWERS that question or instead
+starts a NEW, unrelated request.
+
+Return is_answer=true when the reply supplies what the question asked for — even as a
+bare fragment: a day ("monday"), a number ("1", "3 sets"), an exercise name, or a short
+confirmation/refusal ("yes", "the first one", "leave it").
+
+Return is_answer=false when the reply ignores the question and asks for something else —
+a new edit, a different topic, a question of their own ("what?", "i wanna curl instead",
+"actually make me a nutrition plan").
+
+Examples:
+Question: "You have squats on multiple days (Monday, Saturday) — which day's should I change?"
+Reply: "monday" -> {"is_answer": true}
+Question: "Which day should I add hip thrusts on?"
+Reply: "tuesday" -> {"is_answer": true}
+Question: "How many sets for the deadlift?"
+Reply: "i wanna curl" -> {"is_answer": false}
+Question: "Which day should I add hip thrusts on?"
+Reply: "actually remove the lunges" -> {"is_answer": false}"""
 
 
 def plan_schema(allowed_names, allowed_days):

@@ -1,27 +1,39 @@
 """
-The functions here classify information from text using llama3.1
+The functions here classify information from text using Llama3.1
 """
 
 from memory import Memory
-from prompts_and_schemas import INTENT_PROMPT, TARGET_MUSCLE_PROMPT, INJURED_MUSCLE_PROMPT, CONDENSE_PROMPT, MUSCLE_SCHEMA, QUERY_SCHEMA, INTENT_SCHEMA
+from prompts_and_schemas import (INTENT_PROMPT, TARGET_MUSCLE_PROMPT,
+                                 INJURED_MUSCLE_PROMPT, CONDENSE_PROMPT, MUSCLE_SCHEMA, QUERY_SCHEMA,
+                                 INTENT_SCHEMA, CONTINUATION_PROMPT, CONTINUATION_SCHEMA)
 from llm import structured_chat
 
 
 def classify_intent(user_input):
-    """Takes the user's query and classifies it into one of seven
-    intent labels, using recent history for context."""
+    """Takes the user's query and classifies it into one of eight
+    intent labels (EXERCISE_GENERAL, EXERCISE_INJURY, PLAN_GENERAL,
+    PLAN_INJURY, PLAN_EDIT, NUTRITION, NUTRITION_PLAN, CHITCHAT)"""
     history = "\n".join(
-        f'{m["role"]}: {m["content"]}' for m in Memory.chat_history[-4:])
+        f'{memory["role"]}: {memory["content"]}' for memory in Memory.chat_history[-4:])
     return structured_chat(
         "llama3.1", INTENT_PROMPT,
         f"Previous conversation:\n{history}\n\nMessage to classify: {user_input}",
         INTENT_SCHEMA)["intent"]
 
 
+def answers_pending_question(question, reply):
+    """Gate for the plan-edit clarification loop: True if 'reply' answers the
+    outstanding 'question', False if the user moved on to a new request."""
+    return structured_chat(
+        "llama3.1", CONTINUATION_PROMPT,
+        f"Question: {question!r}\nReply: {reply!r}",
+        CONTINUATION_SCHEMA)["is_answer"]
+
+
 def classify_injured_muscle(user_input):
     """Takes user input and if an injury is mentioned, returns the list of injured
-    muscle_ids (empty list if none) — same shape as classify_target_muscle, so it
-    can be passed straight to retrieve_exercises' ANY(%s) filter."""
+    muscle_ids (empty list if none) so it can be passed straight to 
+    retrieve_exercises' ANY(%s) filter."""
     return structured_chat("llama3.1", INJURED_MUSCLE_PROMPT, user_input, MUSCLE_SCHEMA)["muscle_ids"]
 
 
@@ -38,7 +50,7 @@ def condense_query(user_input):
         return user_input
 
     history = "\n".join(
-        f'{m["role"]}: {m["content"]}' for m in Memory.chat_history[-4:])
+        f'{memory["role"]}: {memory["content"]}' for memory in Memory.chat_history[-4:])
     result = structured_chat(
         "llama3.1", CONDENSE_PROMPT,
         f"Conversation:\n{history}\n\nLatest message: {user_input}",

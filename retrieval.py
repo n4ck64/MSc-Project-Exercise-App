@@ -1,5 +1,5 @@
 """
-All database retrieval functions live here
+All Postgres database retrieval functions live here
 """
 
 from datetime import date
@@ -10,8 +10,8 @@ import threading
 import ollama
 import psycopg2
 
-# DB name/role are env-overridable so the app runs on any machine; the defaults
-# match a local Postgres where the role equals the OS username (peer auth).
+# to use the app, user must have Postgres installed on device and be logged in
+# os module gets the authentication details below
 conn = psycopg2.connect(
     dbname=os.environ.get("REFIT_DB_NAME", "exercise_database"),
     user=os.environ.get("REFIT_DB_USER", getpass.getuser()),
@@ -49,15 +49,16 @@ def retrieve_exercises(query, top_k=3, target_muscle_id=None, injured_muscle_id=
         params.append(injured_muscle_id)
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    cur.execute(f"""
-    SELECT exercise_id, exercise_name, description, type, difficulty, equipment
-    FROM exercises
-    {where}
-    ORDER BY embedding <=> %s::vector
-    LIMIT %s
-    """, params + [embedding, top_k])
+    with db_lock:
+        cur.execute(f"""
+        SELECT exercise_id, exercise_name, description, type, difficulty, equipment
+        FROM exercises
+        {where}
+        ORDER BY embedding <=> %s::vector
+        LIMIT %s
+        """, params + [embedding, top_k])
 
-    rows = cur.fetchall()
+        rows = cur.fetchall()
 
     # if the target-muscle filter matched nothing, drop it but keep the equipment
     # constraint (the user still cares which kit they have) and search again
@@ -106,14 +107,14 @@ def retrieve_exercise_names(description, top_k=3):
     response = ollama.embed(model="nomic-embed-text",
                             input=f"search_query: {description}")
     embedding = response.embeddings[0]
-    cur.execute("""
-                SELECT exercise_name
-                FROM exercises
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s
-                """, (embedding, top_k))
-
-    rows = cur.fetchall()
+    with db_lock:
+        cur.execute("""
+                    SELECT exercise_name
+                    FROM exercises
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                    """, (embedding, top_k))
+        rows = cur.fetchall()
     results = []
     for name in rows:
         results.append(name[0])
@@ -123,13 +124,13 @@ def retrieve_exercise_names(description, top_k=3):
 def retrieve_exercise_description(name):
     """Retrieves the description of the exercise that matches the given name.
     Used in the last step of the video analysis pipeline."""
-    cur.execute("""
-                SELECT description
-                FROM exercises
-                WHERE exercise_name ILIKE %s
-                """, (name,))
-
-    result = cur.fetchone()
+    with db_lock:
+        cur.execute("""
+                    SELECT description
+                    FROM exercises
+                    WHERE exercise_name ILIKE %s
+                    """, (name,))
+        result = cur.fetchone()
     if result is None:
         return None
     return result[0]
@@ -142,14 +143,14 @@ def retrieve_foods(query, top_k=3):
     response = ollama.embed(model="nomic-embed-text",
                             input=f"search_query: {query}")
     embedding = response.embeddings[0]
-    cur.execute("""
-                SELECT food_name, kcal, protein_g, fat_g, carb_g, total_sugars_g, fibre_nsp_g
-                FROM foods
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s
-                """, (embedding, top_k))
-
-    rows = cur.fetchall()
+    with db_lock:
+        cur.execute("""
+                    SELECT food_name, kcal, protein_g, fat_g, carb_g, total_sugars_g, fibre_nsp_g
+                    FROM foods
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                    """, (embedding, top_k))
+        rows = cur.fetchall()
 
     def fmt(value, unit):
         # CoFID leaves some nutrients unmeasured (stored as NULL).
@@ -166,20 +167,20 @@ def retrieve_foods(query, top_k=3):
 
 
 def resolve_food_name(query, top_k=1):
-    """Maps a casual food name ("chicken breast") to the closest canonical CoFID
-    food_name via embedding search, so the exact-match lookups (get_food_macros,
-    daily_gaps_for_food) can retry after an ILIKE miss without losing gram-scaling.
-    Returns the best-matching food_name, or None if the table is empty."""
+    """Maps the lay food name (e.g. "chicken breast") to the nearest
+    match in the database. This allows for nutrition RAG functions to
+    retrieve data without returning None"""
     response = ollama.embed(model="nomic-embed-text",
                             input=f"search_query: {query}")
     embedding = response.embeddings[0]
-    cur.execute("""
-                SELECT food_name
-                FROM foods
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s
-                """, (embedding, top_k))
-    row = cur.fetchone()
+    with db_lock:
+        cur.execute("""
+                    SELECT food_name
+                    FROM foods
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                    """, (embedding, top_k))
+        row = cur.fetchone()
     return row[0] if row else None
 
 
@@ -187,20 +188,22 @@ def retrieve_nutrient_targets(sex, age):
     """Returns the UK daily dietary guideline values (PHE 2016) for a user of
     the given sex ('M'/'F') and age, as a {nutrient: (value, limit_type)} dict.
     limit_type is 'target', 'min' (at least) or 'max' (less than)."""
-    cur.execute("""
-                SELECT nutrient, value, limit_type
-                FROM nutrient_reference
-                WHERE sex = %s AND %s BETWEEN age_min AND age_max
-                """, (sex, age))
-    return {nutrient: (value, limit_type) for nutrient, value, limit_type in cur.fetchall()}
+    with db_lock:
+        cur.execute("""
+                    SELECT nutrient, value, limit_type
+                    FROM nutrient_reference
+                    WHERE sex = %s AND %s BETWEEN age_min AND age_max
+                    """, (sex, age))
+        return {nutrient: (value, limit_type) for nutrient, value, limit_type in cur.fetchall()}
 
 
 def get_user_sex_age(user_id):
     """Returns (sex, age_in_years) for a user, age derived from date_of_birth.
     Returns None if the user or their date of birth is missing."""
-    cur.execute(
-        'SELECT gender, date_of_birth FROM "user" WHERE user_id = %s', (user_id,))
-    row = cur.fetchone()
+    with db_lock:
+        cur.execute(
+            'SELECT gender, date_of_birth FROM "user" WHERE user_id = %s', (user_id,))
+        row = cur.fetchone()
     if row is None or row[1] is None:
         return None
     gender, dob = row
@@ -211,20 +214,19 @@ def get_user_sex_age(user_id):
 
 
 def get_food_macros(food_name, grams=100):
-    """Returns a food's macros scaled to `grams`, keyed to match the
-    nutrient_reference nutrients (looked up by name, case-insensitive).
-    Proxies to be aware of: the foods table stores TOTAL sugars, not free
-    sugars, so free_sugars_g is an over-estimate; and there is no
-    saturated-fat column, so satfat_g is not returned."""
-    cur.execute("""
-                SELECT kcal, protein_g, fat_g, carb_g, total_sugars_g,
-                       COALESCE(fibre_aoac_g, fibre_nsp_g)
-                FROM foods
-                WHERE food_name ILIKE %s
-                ORDER BY length(food_name)
-                LIMIT 1
-                """, (food_name,))
-    row = cur.fetchone()
+    """Returns a food's macros scaled to 'grams', keyed to match the
+    nutrient_reference nutrients (looked up by name, case-insensitive)"""
+
+    with db_lock:
+        cur.execute("""
+                    SELECT kcal, protein_g, fat_g, carb_g, total_sugars_g,
+                           COALESCE(fibre_aoac_g, fibre_nsp_g)
+                    FROM foods
+                    WHERE food_name ILIKE %s
+                    ORDER BY length(food_name)
+                    LIMIT 1
+                    """, (food_name,))
+        row = cur.fetchone()
     if row is None:
         return None
     kcal, protein, fat, carb, sugars, fibre = row
@@ -237,7 +239,7 @@ def get_food_macros(food_name, grams=100):
 def compute_macro_gaps(sex, age, consumed):
     """Compares a dict of consumed macros against the user's daily guideline and
     returns, per nutrient, the amount consumed, the target, its limit_type, and
-    `remaining` (target - consumed): for 'target'/'min' how much is left to go;
+    'remaining' (target - consumed): for 'target'/'min' how much is left to go;
     for 'max' the headroom left, where a negative value means the limit is
     exceeded."""
     targets = retrieve_nutrient_targets(sex, age)
@@ -284,10 +286,8 @@ def daily_gaps_for_food(user_id, food_name, grams=100):
 
 
 def list_exercises():
-    """Returns a list of dictionaries of all exercises within the database for searching and browsing.
-    No embedding is needed here, just a simple SELECT SQL query.
-    """
-
+    """Returns a list of dictionaries of all exercises within the database
+    for searching and browsing within the 'Exercises' tab"""
     with db_lock:
         cur.execute("""
         SELECT exercise_id, exercise_name, description, type, difficulty, equipment
@@ -310,6 +310,78 @@ def list_exercises():
                 "muscles": _muscles_for_exercise(ex_id)
             })
     return exercises
+
+
+def get_user_plan(user_id):
+    """Returns a user's current plan as {"exercises": [{name, day, sets, reps}, ...]},
+    ordered the same way it was built, or None if they have no plan yet."""
+    with db_lock:
+        cur.execute("""
+                    SELECT e.exercise_name, pe.day, pe.sets, pe.reps
+                    FROM plans p
+                    JOIN plan_exercises pe ON pe.plan_id = p.plan_id
+                    JOIN exercises e ON e.exercise_id = pe.exercise_id
+                    WHERE p.user_id = %s
+                    ORDER BY pe."order"
+                    """, (user_id,))
+        rows = cur.fetchall()
+    if not rows:
+        return None
+    return {"exercises": [
+        {"name": name, "day": day, "sets": sets, "reps": reps}
+        for name, day, sets, reps in rows
+    ]}
+
+
+def get_user_plan_rows(user_id):
+    """Like get_user_plan, but includes plan_exercise_id/exercise_id — used by
+    the plan-edit pipeline(pipelines.route_plan_edit) to target a specific row
+    for a move/param edit. Plans.tsx doesn't need these ids, hence the separate
+    function."""
+    with db_lock:
+        cur.execute("""
+                    SELECT pe.plan_exercise_id, e.exercise_id, e.exercise_name, pe.day, pe.sets, pe.reps
+                    FROM plans p
+                    JOIN plan_exercises pe ON pe.plan_id = p.plan_id
+                    JOIN exercises e ON e.exercise_id = pe.exercise_id
+                    WHERE p.user_id = %s
+                    ORDER BY pe."order"
+                    """, (user_id,))
+        rows = cur.fetchall()
+    return [{"plan_exercise_id": plan_id, "exercise_id": exercise_id, "name": name,
+             "day": day, "sets": sets, "reps": reps}
+            for plan_id, exercise_id, name, day, sets, reps in rows]
+
+
+def get_exercise_id(exercise_name):
+    """Exact(case-insensitive) exercise_name -> exercise_id lookup. Used to
+    resolve an add_exercise plan edit after resolve_exercise_name finds the
+    canonical name."""
+    with db_lock:
+        cur.execute(
+            "SELECT exercise_id FROM exercises WHERE exercise_name ILIKE %s LIMIT 1",
+            (exercise_name,))
+        row = cur.fetchone()
+    return row[0] if row else None
+
+
+def resolve_exercise_name(query, top_k=1):
+    """Maps a free-text exercise name(e.g. "lunges") to the closest canonical
+    exercise_name via embedding search. Used to resolve an add_exercise plan edit
+    to a real exercise_id. Returns the best-matching exercise_name, or None if the table is empty."""
+
+    response = ollama.embed(model="nomic-embed-text",
+                            input=f"search_query: {query}")
+    embedding = response.embeddings[0]
+    with db_lock:
+        cur.execute("""
+                    SELECT exercise_name
+                    FROM exercises
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                    """, (embedding, top_k))
+        row = cur.fetchone()
+    return row[0] if row else None
 
 
 def get_exercise_ratings(user_id, exercise_id=None):

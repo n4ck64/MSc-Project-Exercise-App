@@ -11,7 +11,7 @@ import os
 import tempfile
 from pipelines import run_chat_pipeline, run_video_pipeline
 from vision import analyse_image, analyse_video
-from retrieval import list_exercises
+from retrieval import list_exercises, get_user_plan, cur, db_lock
 from memory import Memory
 
 app = FastAPI()
@@ -30,6 +30,7 @@ class Message(BaseModel):
     image_path: str | None = None
     file_type: str | None = None
     video_choice: str | None = None
+    user_id: int = 1
 
 
 logging.basicConfig(
@@ -62,7 +63,7 @@ async def chat_endpoint(message: Message):
         return StreamingResponse(analyse_image(message.image_path, message.content), media_type="text/plain")
 
     # if no media is present, regular pipeline runs
-    return StreamingResponse(run_chat_pipeline(message.content), media_type="text/plain")
+    return StreamingResponse(run_chat_pipeline(message.content, message.user_id), media_type="text/plain")
 
 
 @app.post("/upload")
@@ -83,7 +84,16 @@ def exercises_endpoint():
 
 
 @app.get("/plan")
-def plan_endpoint():
-    """returns the most recently built workout plan as JSON for the Plans page.
-    null until the user has completed the plan flow in chat."""
-    return Memory.finished_plan
+def plan_endpoint(user_id: int = 1):
+    """returns the given user's workout plan as JSON for the Plans page.
+    null until that user has completed the plan flow in chat."""
+    return get_user_plan(user_id)
+
+
+@app.get("/users")
+def users_endpoint():
+    """returns all seeded test users as [{user_id, full_name}, ...], for the
+    frontend's dev-only user switcher."""
+    with db_lock:
+        cur.execute('SELECT user_id, full_name FROM "user" ORDER BY user_id')
+        return [{"user_id": uid, "full_name": name} for uid, name in cur.fetchall()]
