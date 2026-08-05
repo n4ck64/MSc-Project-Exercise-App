@@ -9,11 +9,15 @@ from prompts_and_schemas import *
 from retrieval import (retrieve_exercises, retrieve_exercise_names,
                        retrieve_exercise_description, retrieve_foods,
                        get_food_macros, daily_gaps_for_food, resolve_food_name,
+                       daily_progress_summary, get_food_id, get_food_macros_by_id,
+                       FOOD_MATCH_MAX_DISTANCE,
                        get_user_plan_rows, resolve_exercise_name, get_exercise_id)
 from memory import Memory
 from llm import structured_chat
-from user_data import clear_exercise_ratings, save_plan, apply_plan_edits
-from classification import classify_intent, classify_injured_muscle, condense_query, classify_target_muscle, answers_pending_question
+from user_data import clear_exercise_ratings, save_plan, apply_plan_edits, log_food
+from classification import (classify_intent, classify_injured_muscle, condense_query,
+                            classify_target_muscle, answers_pending_question,
+                            classify_confirmation)
 import logging
 
 
@@ -46,6 +50,24 @@ def run_chat_pipeline(user_input, user_id=1):
     # if it gets stuck in a loop, _MAX_EDIT_CLARIFICATIONS provides an escape
     # if user_input is irrelevant, plan-making ceases and directs to standard
     # intent classification
+    # A food-log confirmation is consumed by the very next message whatever it says:
+    # 'yes' writes the row, 'no' drops it, anything else drops it and falls through to
+    # normal classification. Unlike pending_edit there is no turns counter, because the
+    # question is asked exactly once and never re-asked — nothing can loop.
+    if Memory.pending_food_log is not None:
+        pending = Memory.pending_food_log
+        Memory.pending_food_log = None
+        decision = classify_confirmation(pending["question"], user_input)
+        logging.debug(f"Food-log confirmation: {decision} for {pending}")
+        if decision == "yes":
+            log_food(user_id, pending["grams"], food_id=pending["food_id"])
+            yield (f"Logged {pending['grams']}g of {pending['food_name']}.\n\n"
+                   f"*Open the [Nutrition](#nutrition) tab to see today's totals.*")
+            return
+        if decision == "no":
+            yield "Okay — nothing logged."
+            return
+
     if Memory.pending_edit is not None:
         pending = Memory.pending_edit
         if pending["turns"] >= _MAX_EDIT_CLARIFICATIONS:
@@ -272,7 +294,11 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
 def route_nutrition(user_input, user_id=1):
     """Tool that determines which nutrition function to run based on the user query.
     Once llama3.1 picks the tool, hard-coded python code extracts the needed information.
-    This mitigates LLM hallucination risk, only risk remaining is choosing the wrong tool."""
+    This mitigates LLM hallucination risk, only risk remaining is choosing the wrong tool.
+
+    Returns (tool, context). For the read tools 'context' is retrieved text that grounds
+    the answerer; for log_food it is a confirmation shown to the user verbatim, because
+    an answerer paraphrasing "log 150g of X?" could misstate what is about to be written."""
     route = structured_chat("llama3.1", NUTRITION_ROUTER_PROMPT,
                             user_input, NUTRITION_ROUTER_SCHEMA)
     logging.debug(f"Nutrition router: {route}")
@@ -284,7 +310,7 @@ def route_nutrition(user_input, user_id=1):
 
     if tool == "food_macros":
         if not food_name:
-            return None
+            return tool, None
         macros = get_food_macros(food_name, grams)
         if macros is None:
             # the DB stores food names in a very verbose manner,
@@ -296,7 +322,7 @@ def route_nutrition(user_input, user_id=1):
                 food_name = resolved
         if macros is None:
             # if after the above resolution nothing is found, let the user know
-            return f"No nutrition data found for '{food_name}'."
+            return tool, f"No nutrition data found for '{food_name}'."
             # nutrients returned are calories, protein, fat, carbohydrates, free sugars and fibre
         lines = "\n".join(
             f"  {nutrient}: {amount}" for nutrient, amount in macros.items())
@@ -304,25 +330,56 @@ def route_nutrition(user_input, user_id=1):
         final = f"Macros for {grams}g of {food_name}:\n{lines}"
 
         logging.debug(f"Final Macros: {final}")
-        return final
+        return tool, final
 
     if tool == "daily_gaps":
         if not food_name:
-            return None
+            return tool, None
         # attempts retrieval with base name, else attempts to resolve
         if get_food_macros(food_name) is None:
             food_name = resolve_food_name(food_name) or food_name
         logging.debug(
             f"Found Gaps: {daily_gaps_for_food(user_id, food_name, grams)}")
-        return daily_gaps_for_food(user_id, food_name, grams)
+        return tool, daily_gaps_for_food(user_id, food_name, grams)
+
+    if tool == "day_progress":
+        # everything in today's food diary against the user's targets — the
+        # whole-day counterpart to daily_gaps, which scores one named food
+        summary = daily_progress_summary(user_id)
+        logging.debug(f"Day progress: {summary}")
+        return tool, summary
+
+    if tool == "log_food":
+        # The only tool that WRITES. Nothing is inserted here: the resolved food is
+        # stashed on Memory.pending_food_log and the user is asked to confirm, so a
+        # mis-resolved name costs a "no" rather than a wrong row in their diary.
+        if not food_name:
+            return tool, "I couldn't tell which food you meant — what did you have?"
+        canonical = (food_name if get_food_id(food_name)
+                     else resolve_food_name(food_name,
+                                            max_distance=FOOD_MATCH_MAX_DISTANCE))
+        food_id = get_food_id(canonical) if canonical else None
+        if food_id is None:
+            return tool, f"I couldn't find '{food_name}' in the UK food database."
+
+        macros = get_food_macros_by_id(food_id, grams) or {}
+        kcal = macros.get("energy_kcal")
+        protein = macros.get("protein_g")
+        detail = (f" — {kcal} kcal" + (f", {protein}g protein" if protein is not None else "")
+                  if kcal is not None else "")
+        question = f"Log {grams}g of {canonical}?"
+        Memory.pending_food_log = {"food_id": food_id, "food_name": canonical,
+                                   "grams": grams, "question": question}
+        return tool, (f"**{question}**{detail}\n\n"
+                      f"*Reply yes to add it to today's diary.*")
 
     if tool == "food_search":
         # retrieves the three most relevant foods based on the user's query
         logging.debug(retrieve_foods(user_input))
-        return retrieve_foods(user_input)
+        return tool, retrieve_foods(user_input)
 
     # if tool == "none": general nutrition talk, no retrieval needed
-    return None
+    return tool, None
 
 
 def run_nutrition_pipeline(user_input, user_id=1):
@@ -333,7 +390,15 @@ def run_nutrition_pipeline(user_input, user_id=1):
 
     logging.debug(f"User's message: {user_input}")
 
-    context = route_nutrition(user_input, user_id)
+    tool, context = route_nutrition(user_input, user_id)
+
+    # log_food's context is a confirmation of a pending WRITE, so it goes to the user
+    # word for word — running it through the answerer/reviewer/rewriter would let a
+    # model restate the food or the amount it is about to commit.
+    if tool == "log_food":
+        yield context
+        return
+
     if context:
         user_message = (f"Reference data from the UK food database:\n{context}\n"
                         f"(the ONLY trustworthy source for this food's figures — use these "

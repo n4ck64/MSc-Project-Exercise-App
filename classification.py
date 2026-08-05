@@ -5,7 +5,8 @@ The functions here classify information from text using Llama3.1
 from memory import Memory
 from prompts_and_schemas import (INTENT_PROMPT, TARGET_MUSCLE_PROMPT,
                                  INJURED_MUSCLE_PROMPT, CONDENSE_PROMPT, MUSCLE_SCHEMA, QUERY_SCHEMA,
-                                 INTENT_SCHEMA, CONTINUATION_PROMPT, CONTINUATION_SCHEMA)
+                                 INTENT_SCHEMA, CONTINUATION_PROMPT, CONTINUATION_SCHEMA,
+                                 CONFIRM_PROMPT, CONFIRM_SCHEMA)
 from llm import structured_chat
 
 
@@ -28,6 +29,17 @@ def answers_pending_question(question, reply):
         "llama3.1", CONTINUATION_PROMPT,
         f"Question: {question!r}\nReply: {reply!r}",
         CONTINUATION_SCHEMA)["is_answer"]
+
+
+def classify_confirmation(question, reply):
+    """Gate for actions that WRITE to the user's data: returns 'yes', 'no' or
+    'unrelated' for a reply to a confirmation question. Distinct from
+    answers_pending_question, which asks whether a reply supplies missing
+    information rather than whether it grants permission."""
+    return structured_chat(
+        "llama3.1", CONFIRM_PROMPT,
+        f"Question: {question!r}\nReply: {reply!r}",
+        CONFIRM_SCHEMA)["decision"]
 
 
 def classify_injured_muscle(user_input):

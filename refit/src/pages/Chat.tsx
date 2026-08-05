@@ -15,7 +15,9 @@ type Choices = {
     names: string[]
 } | null
 
-function Chat({ goToPlans, userId }: { goToPlans: () => void, userId: number }) {
+function Chat({ goToPlans, goToNutrition, userId }: {
+    goToPlans: () => void, goToNutrition: () => void, userId: number
+}) {
     const [pendingImage, setPendingImage] = useState<string | null>(null)
     const [pendingVideoChoice, setPendingVideoChoice] = useState<string | null>(null)
     const [pendingFileType, setPendingFileType] = useState<"image" | "video" | null>(null)
@@ -170,12 +172,17 @@ function Chat({ goToPlans, userId }: { goToPlans: () => void, userId: number }) 
                     : <div key={i} className={m.pulsing ? "bot-message pulsing" : "bot-message"}>
                         <ReactMarkdown
                             components={{
-                                // intercept our own "#plans" link: switch tabs in-app
-                                // (and refresh Plans) instead of navigating the browser
-                                a: ({ href, children }) =>
-                                    href === "#plans"
-                                        ? <a href="#plans" onClick={e => { e.preventDefault(); goToPlans() }}>{children}</a>
+                                // intercept our own "#plans"/"#nutrition" links: switch
+                                // tabs in-app (and refresh that page) instead of
+                                // navigating the browser
+                                a: ({ href, children }) => {
+                                    const jump = href === "#plans" ? goToPlans
+                                        : href === "#nutrition" ? goToNutrition
+                                            : null
+                                    return jump
+                                        ? <a href={href} onClick={e => { e.preventDefault(); jump() }}>{children}</a>
                                         : <a href={href}>{children}</a>
+                                }
                             }}
                         >{m.content}</ReactMarkdown>
                     </div>

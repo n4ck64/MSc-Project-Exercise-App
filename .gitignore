@@ -11,3 +11,7 @@ refit.log
 docs/encryption-design-note.md
 evaluation/
 .claude/launch.json
+paper/refit.tex
+paper/IEEEtran.cls
+paper/.gitignore
+migrations/002_nutrition_log.sql

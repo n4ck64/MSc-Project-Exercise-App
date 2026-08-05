@@ -201,14 +201,11 @@ CONTRAST_PAIRS = [
 
 # DPO learns whatever separates chosen from rejected. If the chosen arm is
 # systematically terser than the hedge-heavy rejected arm, the tune learns
-# "be brief" instead of "calibrate". Enforce at dataset-build time, not by hope.
+# "be brief" instead of "calibrate". Enforced at dataset-build time, not by hope.
 LENGTH_RATIO_TOLERANCE = 0.25  # |len(chosen) - len(rejected)| / len(rejected)
 
-# Mode collapse is the dominant failure of synthetic generation and is invisible
-# in aggregate statistics. Read samples by hand before committing to a full run.
+# Samples to run before full run to not waste computing time
 SAMPLE_BEFORE_FULL_RUN = 50
 
-# Target tier mix. Deliberately not uniform: Tier 0 and 1 dominate real traffic,
-# and over-weighting Tier 3 would reintroduce exactly the reflexive caution the
-# tune exists to remove.
+# Target tier mix. Skewed toward tier 0 to reflect likely real traffic
 TIER_DISTRIBUTION = {0: 0.35, 1: 0.30, 2: 0.25, 3: 0.10}

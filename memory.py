@@ -15,6 +15,9 @@ class Memory:
     finished_plan = None   # the built plan JSON the Plans page fetches
     # plan-edit awaiting a clarifying answer: {context, question, turns}; None = none pending
     pending_edit = None
+    # food-log awaiting a yes/no before it is written: {food_id, food_name, grams,
+    # question}; None = none pending. Nothing is written until the user confirms.
+    pending_food_log = None
     # which user the above conversational state belongs to (dev switcher)
     current_user_id = None
 
@@ -25,6 +28,7 @@ class Memory:
         cls.plan_slots = None
         cls.finished_plan = None
         cls.pending_edit = None
+        cls.pending_food_log = None
 
     @classmethod
     def reset_video(cls):

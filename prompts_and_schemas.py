@@ -207,7 +207,8 @@ NUTRITION_ROUTER_SCHEMA = {
     "type": "object",
     "properties": {
         "tool": {"type": "string",
-                 "enum": ["food_macros", "daily_gaps", "food_search", "none"]},
+                 "enum": ["food_macros", "daily_gaps", "day_progress",
+                          "log_food", "food_search", "none"]},
         # null MUST be allowed here, or constrained decoding can never emit it and
         # the model is forced to fabricate a food/amount even when the user named
         # none — the same bug INTAKE_SCHEMA guards against.
@@ -225,24 +226,78 @@ Tools:
 - food_macros: the user names a SPECIFIC food and wants its nutritional breakdown
   (calories / protein / fat / carbs). food_name = the food; grams = the amount they
   state, or null if they give none (the caller then defaults to 100g).
-- daily_gaps: the user wants to know how a specific food fits their DAILY dietary
-  targets ("how does X fit my day", "is 100g of rice enough carbs for me").
+- daily_gaps: the user names ONE SPECIFIC food and asks how THAT food would fit
+  their daily targets ("how does 200g of rice fit my day", "is this enough carbs
+  for me"). Always about a single named food, usually one they are considering.
   food_name and grams as above.
+- day_progress: the user asks how their DAY SO FAR is going against their targets,
+  based on the food diary rather than any one named food ("how am I doing today",
+  "what am I still short on", "have I hit my protein yet", "how many calories do I
+  have left"). No food is named. food_name and grams are null.
+- log_food: the user is RECORDING something they ate, or telling you to put it in their
+  food diary ("I had 150g of chicken for lunch", "log 100g of porridge", "add 2 eggs to
+  today"). They are reporting or instructing, NOT asking a question. food_name = the
+  food; grams = the amount they state, or null if they give none.
 - food_search: the user wants food SUGGESTIONS or ideas by property, not one named
   food ("high-protein snacks", "what should I eat post-workout"). food_name and
   grams are null — the caller searches on the raw message.
 - none: general nutrition talk needing no database lookup ("is intermittent fasting
   healthy", "should I cut sugar"). food_name and grams are null.
 
-If the user names no specific food, do NOT invent one — use food_search or none and
-set food_name and grams to null.
+If the user names no specific food, do NOT invent one — use day_progress,
+food_search or none and set food_name and grams to null.
+
+The difference between daily_gaps and day_progress is whether a food is named:
+daily_gaps scores ONE food the user mentions, day_progress totals up what they have
+already eaten. If they name a food, it is never day_progress.
+
+The difference between log_food and the question tools is what the user is DOING.
+log_food records an intake they state they had or want added. food_macros and
+daily_gaps answer a question about a food. "I ate 200g of rice" is log_food;
+"how many carbs are in 200g of rice" is food_macros.
 
 Examples:
 "how much protein is in 150g of chicken breast" -> {"tool": "food_macros", "food_name": "chicken breast", "grams": 150}
 "macros for an avocado" -> {"tool": "food_macros", "food_name": "avocado", "grams": null}
 "how does 200g of white rice fit into my day" -> {"tool": "daily_gaps", "food_name": "white rice", "grams": 200}
+"how am I doing on my targets today" -> {"tool": "day_progress", "food_name": null, "grams": null}
+"how much protein have I had so far" -> {"tool": "day_progress", "food_name": null, "grams": null}
+"i had 150g of chicken breast for lunch" -> {"tool": "log_food", "food_name": "chicken breast", "grams": 150}
+"log 100g of porridge oats" -> {"tool": "log_food", "food_name": "porridge oats", "grams": 100}
+"add a banana to today" -> {"tool": "log_food", "food_name": "banana", "grams": null}
 "what are some high protein snacks" -> {"tool": "food_search", "food_name": null, "grams": null}
 "is keto actually healthy" -> {"tool": "none", "food_name": null, "grams": null}"""
+
+
+CONFIRM_SCHEMA = {
+    "type": "object",
+    "properties": {"decision": {"type": "string",
+                                "enum": ["yes", "no", "unrelated"]}},
+    "required": ["decision"],
+}
+
+CONFIRM_PROMPT = """An assistant asked the user to confirm an action before carrying it
+out. Decide what the user's reply means. Return only the JSON.
+
+- yes: the reply confirms the action ("yes", "yep", "go on", "please do", "sure", "ok",
+  "that's right", "correct", "do it").
+- no: the reply rejects or cancels it ("no", "nope", "don't", "cancel", "wrong one",
+  "leave it", "actually no").
+- unrelated: the reply neither confirms nor rejects — it asks something else or changes
+  the subject ("what's a good chest exercise", "how much protein is in eggs", "what?").
+
+When torn between yes and unrelated, choose unrelated. The action is only taken on a
+clear confirmation, and doing nothing is always the safer outcome.
+
+Examples:
+Question: "Log 150g of Cheese, Cheddar, English?"
+Reply: "yes" -> {"decision": "yes"}
+Question: "Log 150g of Cheese, Cheddar, English?"
+Reply: "go for it" -> {"decision": "yes"}
+Question: "Log 200g of Rice, white, long grain, raw?"
+Reply: "no, that's the raw one" -> {"decision": "no"}
+Question: "Log 100g of Banana?"
+Reply: "what should I eat after a workout" -> {"decision": "unrelated"}"""
 
 INTAKE_PROMPT = """You extract workout-plan requirements from the user's message.
 Fill each field ONLY with information the user actually stated in this message.

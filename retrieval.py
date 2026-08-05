@@ -2,7 +2,7 @@
 All Postgres database retrieval functions live here
 """
 
-from datetime import date
+from datetime import date, timedelta
 import getpass
 import os
 import threading
@@ -166,22 +166,34 @@ def retrieve_foods(query, top_k=3):
     return "\n\n".join(results)
 
 
-def resolve_food_name(query, top_k=1):
+# Cosine-distance cutoff above which an embedding match is treated as no match.
+# Nearest-neighbour search always returns its closest row however unrelated the
+# query is, so without a cutoff "asdfghjkl" resolves to a real food. Measured over
+
+FOOD_MATCH_MAX_DISTANCE = 0.35
+
+
+def resolve_food_name(query, top_k=1, max_distance=None):
     """Maps the lay food name (e.g. "chicken breast") to the nearest
     match in the database. This allows for nutrition RAG functions to
-    retrieve data without returning None"""
+    retrieve data without returning None.
+    Passing max_distance rejects matches further away than that cutoff, returning
+    None instead of the closest row. Defaults to
+    off, so the read-side callers keep their always-return-something behaviour."""
     response = ollama.embed(model="nomic-embed-text",
                             input=f"search_query: {query}")
     embedding = response.embeddings[0]
     with db_lock:
         cur.execute("""
-                    SELECT food_name
+                    SELECT food_name, embedding <=> %s::vector AS distance
                     FROM foods
-                    ORDER BY embedding <=> %s::vector
+                    ORDER BY distance
                     LIMIT %s
                     """, (embedding, top_k))
         row = cur.fetchone()
-    return row[0] if row else None
+    if row is None or (max_distance is not None and row[1] > max_distance):
+        return None
+    return row[0]
 
 
 def retrieve_nutrient_targets(sex, age):
@@ -213,36 +225,115 @@ def get_user_sex_age(user_id):
     return gender, age
 
 
+# Shared by every per-food lookup so the column order
+_MACRO_COLUMNS = """kcal, protein_g, fat_g, carb_g, total_sugars_g,
+                    COALESCE(fibre_aoac_g, fibre_nsp_g)"""
+
+# Nutrients the guideline covers but the food data cannot honestly be scored
+# against, so they are excluded from targets and tracked as bare numbers instead:
+UNTARGETED_NUTRIENTS = {"satfat_g", "free_sugars_g"}
+
+
+def _scale_macros(row, grams):
+    """Scales a _MACRO_COLUMNS row from per-100g to 'grams', keyed to match the
+    nutrient_reference nutrients."""
+    kcal, protein, fat, carb, sugars, fibre = row
+    factor = grams / 100.0
+    scaled = {"energy_kcal": kcal, "protein_g": protein, "fat_g": fat,
+              "carb_g": carb, "total_sugars_g": sugars, "fibre_g": fibre}
+    return {nutrient: round(value * factor, 1)
+            for nutrient, value in scaled.items() if value is not None}
+
+
 def get_food_macros(food_name, grams=100):
     """Returns a food's macros scaled to 'grams', keyed to match the
     nutrient_reference nutrients (looked up by name, case-insensitive)"""
 
     with db_lock:
-        cur.execute("""
-                    SELECT kcal, protein_g, fat_g, carb_g, total_sugars_g,
-                           COALESCE(fibre_aoac_g, fibre_nsp_g)
+        cur.execute(f"""
+                    SELECT {_MACRO_COLUMNS}
                     FROM foods
                     WHERE food_name ILIKE %s
                     ORDER BY length(food_name)
                     LIMIT 1
                     """, (food_name,))
         row = cur.fetchone()
-    if row is None:
+    return _scale_macros(row, grams) if row else None
+
+
+def get_food_macros_by_id(food_id, grams=100):
+    """Macros for a food looked up by primary key. Used once a food_id is already
+    resolved, where get_food_macros' ILIKE-and-shortest-match could land on a
+    different row than the one that id refers to."""
+    with db_lock:
+        cur.execute(
+            f"SELECT {_MACRO_COLUMNS} FROM foods WHERE id = %s", (food_id,))
+        row = cur.fetchone()
+    return _scale_macros(row, grams) if row else None
+
+
+def get_food_id(food_name):
+    """Maps an exact (case-insensitive) food name to its primary key, preferring
+    the shortest match the same way get_food_macros does."""
+    with db_lock:
+        cur.execute("""
+                    SELECT id
+                    FROM foods
+                    WHERE food_name ILIKE %s
+                    ORDER BY length(food_name)
+                    LIMIT 1
+                    """, (food_name,))
+        row = cur.fetchone()
+    return row[0] if row else None
+
+
+def search_foods(query, top_k=8):
+    """Structured food search for the Nutrition tab's log form — the same
+    embedding lookup as retrieve_foods, but returning rows the UI can render and
+    post back by id, rather than the formatted string the LLM pipeline consumes."""
+    response = ollama.embed(model="nomic-embed-text",
+                            input=f"search_query: {query}")
+    embedding = response.embeddings[0]
+    with db_lock:
+        cur.execute(f"""
+                    SELECT id, food_name, {_MACRO_COLUMNS}
+                    FROM foods
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                    """, (embedding, top_k))
+        rows = cur.fetchall()
+    return [{"food_id": food_id, "food_name": name, **_scale_macros(macros, 100)}
+            for food_id, name, *macros in rows]
+
+
+def effective_targets(user_id):
+    """The user's daily nutrient targets: the PHE population guideline for their
+    sex/age with any per-user override layered on top, minus the nutrients in
+    UNTARGETED_NUTRIENTS. Returns {nutrient: (value, limit_type)}, or None if the
+    user has no record or date of birth on file."""
+    context = get_user_sex_age(user_id)
+    if context is None:
         return None
-    kcal, protein, fat, carb, sugars, fibre = row
-    factor = grams / 100.0
-    scaled = {"energy_kcal": kcal, "protein_g": protein, "fat_g": fat,
-              "carb_g": carb, "free_sugars_g": sugars, "fibre_g": fibre}
-    return {k: round(v * factor, 1) for k, v in scaled.items() if v is not None}
-
-
-def compute_macro_gaps(sex, age, consumed):
-    """Compares a dict of consumed macros against the user's daily guideline and
-    returns, per nutrient, the amount consumed, the target, its limit_type, and
-    'remaining' (target - consumed): for 'target'/'min' how much is left to go;
-    for 'max' the headroom left, where a negative value means the limit is
-    exceeded."""
+    sex, age = context
     targets = retrieve_nutrient_targets(sex, age)
+    with db_lock:
+        cur.execute("""
+                    SELECT nutrient, value, limit_type
+                    FROM user_nutrition_targets
+                    WHERE user_id = %s
+                    """, (user_id,))
+        targets.update({nutrient: (value, limit_type)
+                        for nutrient, value, limit_type in cur.fetchall()})
+    return {nutrient: target for nutrient, target in targets.items()
+            if nutrient not in UNTARGETED_NUTRIENTS}
+
+
+def compute_macro_gaps(targets, consumed):
+    """Compares a dict of consumed macros against the given daily targets (see
+    effective_targets) and returns, per nutrient, the amount consumed, the target,
+    its limit_type, and 'remaining' (target - consumed): for 'target'/'min' how
+    much is left to go; for 'max' the headroom left, where a negative value means
+    the limit is exceeded."""
     result = {}
     for nutrient, (target, limit_type) in targets.items():
         amount = consumed.get(nutrient)
@@ -257,32 +348,152 @@ def compute_macro_gaps(sex, age, consumed):
     return result
 
 
+# translating DB column names to natural language
+_NUTRIENT_LABELS = {"energy_kcal": "Energy (kcal)", "protein_g": "Protein (g)",
+                    "fat_g": "Fat (g)", "carb_g": "Carbohydrate (g)",
+                    "fibre_g": "Fibre (g)", "total_sugars_g": "Total sugars (g)"}
+
+
+def _format_gaps(header, gaps):
+    """Renders compute_macro_gaps output as the readable lines both the
+    single-food and whole-day summaries hand to the LLM."""
+    lines = [header]
+    for nutrient, gap in gaps.items():
+        if gap["limit_type"] == "max":
+            note = (f"{abs(gap['remaining'])} over limit" if gap["remaining"] < 0
+                    else f"{gap['remaining']} headroom left")
+        else:
+            note = (f"{gap['remaining']} to go" if gap["remaining"] > 0
+                    else "target met")
+        lines.append(f"  {_NUTRIENT_LABELS.get(nutrient, nutrient)}: {gap['consumed']} "
+                     f"of {gap['target']} ({gap['limit_type']}) -> {note}")
+    return "\n".join(lines)
+
+
 def daily_gaps_for_food(user_id, food_name, grams=100):
     """End-to-end: how eating 'grams' of 'food_name' contributes toward a user's
     daily UK dietary guideline. Returns a readable summary, or a note if the
     user/date of birth or the food is missing."""
-    context = get_user_sex_age(user_id)
-    if context is None:
+    targets = effective_targets(user_id)
+    if targets is None:
         return "No user record or date of birth on file."
-    sex, age = context
     consumed = get_food_macros(food_name, grams)
     if consumed is None:
         return f"No food matching '{food_name}' found."
-    gaps = compute_macro_gaps(sex, age, consumed)
+    sex, age = get_user_sex_age(user_id)
+    return _format_gaps(f"{grams}g of {food_name} vs daily guideline ({sex}, age {age}):",
+                        compute_macro_gaps(targets, consumed))
 
-    labels = {"energy_kcal": "Energy (kcal)", "protein_g": "Protein (g)",
-              "fat_g": "Fat (g)", "carb_g": "Carbohydrate (g)",
-              "free_sugars_g": "Sugars (g)", "fibre_g": "Fibre (g)"}
-    lines = [f"{grams}g of {food_name} vs daily guideline ({sex}, age {age}):"]
-    for nutrient, g in gaps.items():
-        if g["limit_type"] == "max":
-            note = (f"{abs(g['remaining'])} over limit" if g["remaining"] < 0
-                    else f"{g['remaining']} headroom left")
-        else:
-            note = f"{g['remaining']} to go" if g["remaining"] > 0 else "target met"
-        lines.append(f"  {labels.get(nutrient, nutrient)}: {g['consumed']} of "
-                     f"{g['target']} ({g['limit_type']}) -> {note}")
-    return "\n".join(lines)
+
+def daily_totals(user_id, on_date=None):
+    """Sums everything a user logged on a date into the same nutrient-keyed shape
+    get_food_macros returns, so it drops straight into compute_macro_gaps. A day
+    with no entries totals zero rather than returning nothing, so the caller can
+    render an empty day without special-casing it."""
+    on_date = on_date or date.today()
+    with db_lock:
+        cur.execute("""
+                    SELECT COALESCE(SUM(foods.kcal           * food_log.grams / 100.0), 0),
+                           COALESCE(SUM(foods.protein_g      * food_log.grams / 100.0), 0),
+                           COALESCE(SUM(foods.fat_g          * food_log.grams / 100.0), 0),
+                           COALESCE(SUM(foods.carb_g         * food_log.grams / 100.0), 0),
+                           COALESCE(SUM(foods.total_sugars_g * food_log.grams / 100.0), 0),
+                           COALESCE(SUM(COALESCE(foods.fibre_aoac_g, foods.fibre_nsp_g)
+                                                                 * food_log.grams / 100.0), 0)
+                    FROM food_log
+                    JOIN foods ON foods.id = food_log.food_id
+                    WHERE food_log.user_id = %s AND food_log.logged_on = %s
+                    """, (user_id, on_date))
+        row = cur.fetchone()
+    nutrients = ("energy_kcal", "protein_g", "fat_g",
+                 "carb_g", "total_sugars_g", "fibre_g")
+    return {nutrient: round(value, 1) for nutrient, value in zip(nutrients, row)}
+
+
+def list_log(user_id, on_date=None):
+    """The individual entries a user logged on a date, for rendering and deleting
+    them in the Nutrition tab."""
+    on_date = on_date or date.today()
+    with db_lock:
+        cur.execute("""
+                    SELECT food_log.log_id, foods.food_name, food_log.grams,
+                           foods.kcal * food_log.grams / 100.0
+                    FROM food_log
+                    JOIN foods ON foods.id = food_log.food_id
+                    WHERE food_log.user_id = %s AND food_log.logged_on = %s
+                    ORDER BY food_log.logged_at
+                    """, (user_id, on_date))
+        rows = cur.fetchall()
+    return [{"log_id": log_id, "food_name": name, "grams": grams,
+             "energy_kcal": round(kcal, 1) if kcal is not None else None}
+            for log_id, name, grams, kcal in rows]
+
+
+def weekly_totals(user_id, end_date=None):
+    """The rolling 7 days ending on end_date inclusive: each day's totals plus the
+    7-day mean per nutrient. The mean matters because the PHE values are stated as
+    population AVERAGE intakes, not per-day pass/fail limits, so a weekly average
+    is the comparison the guideline actually supports."""
+    end_date = end_date or date.today()
+    days = [{"date": (end_date - timedelta(days=offset)).isoformat(),
+             "totals": daily_totals(user_id, end_date - timedelta(days=offset))}
+            for offset in range(6, -1, -1)]
+    average = {nutrient: round(sum(day["totals"][nutrient] for day in days) / len(days), 1)
+               for nutrient in days[0]["totals"]}
+    return {"days": days, "average": average}
+
+
+def daily_progress_summary(user_id, on_date=None):
+    """Readable summary of everything logged on a date against the user's daily
+    targets — the whole-day twin of daily_gaps_for_food. Backs the chat router's
+    day_progress tool ("how am I doing today")."""
+    on_date = on_date or date.today()
+    targets = effective_targets(user_id)
+    if targets is None:
+        return "No user record or date of birth on file."
+    entries = list_log(user_id, on_date)
+    if not entries:
+        return f"Nothing logged for {on_date.isoformat()} yet."
+    consumed = daily_totals(user_id, on_date)
+    header = (f"Logged so far on {on_date.isoformat()} ({len(entries)} "
+              f"item{'' if len(entries) == 1 else 's'}) vs daily guideline:")
+    return (f"{_format_gaps(header, compute_macro_gaps(targets, consumed))}\n"
+            f"  {_NUTRIENT_LABELS['total_sugars_g']}: {consumed['total_sugars_g']} "
+            f"(tracked only — no comparable UK guideline, see UNTARGETED_NUTRIENTS)")
+
+
+def _targets_payload(targets):
+    """Flattens {nutrient: (value, limit_type)} into JSON objects for the frontend."""
+    return {nutrient: {"value": value, "limit_type": limit_type}
+            for nutrient, (value, limit_type) in targets.items()}
+
+
+def day_view(user_id, on_date=None):
+    """Everything the Nutrition tab renders for one day in a single payload: the
+    entries, the running totals, the user's targets and the gaps against them.
+    'untargeted' lists the nutrients that are tracked but have no target, so the
+    page knows to render them as bare numbers rather than progress bars instead of
+    hardcoding that rule. targets/gaps come back empty when the user has no DOB."""
+    on_date = on_date or date.today()
+    totals = daily_totals(user_id, on_date)
+    targets = effective_targets(user_id) or {}
+    return {"date": on_date.isoformat(),
+            "entries": list_log(user_id, on_date),
+            "totals": totals,
+            "targets": _targets_payload(targets),
+            "gaps": compute_macro_gaps(targets, totals),
+            "untargeted": sorted(set(totals) - set(targets))}
+
+
+def week_view(user_id, end_date=None):
+    """The rolling 7 days ending on end_date for the Nutrition tab's weekly view.
+    Gaps are computed on the weekly MEAN rather than per day — see weekly_totals."""
+    week = weekly_totals(user_id, end_date)
+    targets = effective_targets(user_id) or {}
+    return {**week,
+            "targets": _targets_payload(targets),
+            "average_gaps": compute_macro_gaps(targets, week["average"]),
+            "untargeted": sorted(set(week["average"]) - set(targets))}
 
 
 def list_exercises():
