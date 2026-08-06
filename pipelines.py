@@ -108,11 +108,6 @@ def run_chat_pipeline(user_input, user_id=1):
         logging.debug(f"Target Muscle: {target_muscle_ids}")
         retrieved = retrieve_exercises(
             rewritten_query, target_muscle_id=target_muscle_ids)
-        Memory.last_exercises = [
-            line.replace("Exercise: ", "")  # this does
-            for line in retrieved.split("\n")
-            if line.startswith("Exercise: ")
-        ]
 
     elif intent in ("PLAN_GENERAL", "PLAN_INJURY"):
         # reads the raw user query, not the condensed version
@@ -167,6 +162,16 @@ def run_chat_pipeline(user_input, user_id=1):
         # below is the result of the SQL queries
         rag_context = f"Relevant exercises:\n\n{retrieved}"
 
+    # names the answerer/reviewer is grounded on for THIS turn so the frontend can
+    # make them tappable in chat, opening the same ExerciseDetail/MuscleMap the
+    # Exercises tab uses. Sent as an EXERCISES: sentinel token after the real
+    # response, mirroring the CHOICES: token pattern.
+    Memory.last_exercises = [
+        line.replace("Exercise: ", "")
+        for line in (retrieved or "").split("\n")
+        if line.startswith("Exercise: ")
+    ]
+
     # a fine-tuned Llama3.1, called refit-dpo responds given the user query and the retrieved data
     yield "Thinking..."
     initial_response = chat("refit-dpo",
@@ -206,6 +211,9 @@ def run_chat_pipeline(user_input, user_id=1):
         # adds the user query and subsequent LLM response to the chat history
         {"role": "assistant", "content": response_content}
     ]
+
+    if Memory.last_exercises:
+        yield f"EXERCISES:{','.join(Memory.last_exercises)}"
 
 
 def run_video_pipeline(user_input, video_summary=None, video_choice=None):

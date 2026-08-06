@@ -1,35 +1,5 @@
 import { useState, useEffect } from 'react'
-
-type Exercise = {
-    id: number
-    name: string
-    description: string
-    type: string
-    difficulty: string
-    equipment: string
-    muscles: {
-        Primary: string
-        Secondary: string
-        Stabiliser: string
-    }
-}
-
-const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
-    Easy: { bg: "#eaf3de", text: "#3b6d11" },   // green
-    Medium: { bg: "#faeeda", text: "#854f0b" },   // amber
-    Hard: { bg: "#fcebeb", text: "#a32d2d" },   // red
-}
-const NEUTRAL = { bg: "#f1efe8", text: "#444441" } // grey, for type + equipment
-
-function pill(colors: { bg: string; text: string }) {
-    return {
-        fontSize: "11px",
-        padding: "2px 8px",
-        borderRadius: "20px",
-        background: colors.bg,
-        color: colors.text,
-    }
-}
+import ExerciseDetail, { DIFFICULTY_COLORS, NEUTRAL, pill, type Exercise } from '../components/ExerciseDetail'
 
 
 function Exercises() {
@@ -177,24 +147,7 @@ function Exercises() {
                             boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
                         }}
                     >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                            <h3 style={{ margin: 0 }}>{selected.ex.name}</h3>
-                            <button className="choice-btn" onClick={() => setSelected(null)}>Close</button>
-                        </div>
-
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
-                            <span style={pill(DIFFICULTY_COLORS[selected.ex.difficulty] || NEUTRAL)}>{selected.ex.difficulty}</span>
-                            <span style={pill(NEUTRAL)}>{selected.ex.type}</span>
-                            <span style={pill(NEUTRAL)}>{selected.ex.equipment}</span>
-                        </div>
-
-                        <div style={{ fontSize: "13px", color: "grey", marginBottom: "16px" }}>
-                            <div>Primary: {selected.ex.muscles.Primary}</div>
-                            <div>Secondary: {selected.ex.muscles.Secondary}</div>
-                            <div>Stabiliser: {selected.ex.muscles.Stabiliser}</div>
-                        </div>
-
-                        <div style={{ fontSize: "14px", lineHeight: 1.5 }}>{selected.ex.description}</div>
+                        <ExerciseDetail ex={selected.ex} onClose={() => setSelected(null)} />
                     </div>
                 </div>
             )}

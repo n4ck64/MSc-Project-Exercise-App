@@ -6,6 +6,18 @@ import Nutrition from './pages/Nutrition'
 
 type User = { user_id: number, full_name: string }
 
+// dev-only avatars for the seeded personas (evaluation/personas.md, persona.md).
+// Keyed by user_id rather than derived from full_name since "Li Suping" puts the
+// family name first, unlike the others.
+const AVATARS: Record<number, string> = {
+  1: "Sam.png",
+  2: "Leo.png",
+  3: "Rita.png",
+  4: "David.png",
+  5: "Marcus.png",
+  6: "Suping.png",
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState("chat")
   // bumping this tells Plans to refetch. We bump it (not just switch tabs) only
@@ -55,7 +67,7 @@ function App() {
               <option key={u.user_id} value={u.user_id}>{u.full_name}</option>
             ))}
           </select>
-          <img id="user-avatar" src="/chad.png" />
+          <img id="user-avatar" src={`/${AVATARS[userId] ?? "chad.png"}`} />
         </div>
 
         <div style={{ display: activeTab === "chat" ? "contents" : "none" }}>

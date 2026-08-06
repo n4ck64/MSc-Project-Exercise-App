@@ -496,6 +496,32 @@ def week_view(user_id, end_date=None):
             "untargeted": sorted(set(week["average"]) - set(targets))}
 
 
+def _muscle_roles_for_exercise(exercise_id):
+    """Like _muscles_for_exercise but also returns the raw muscle_ids per role,
+    for the frontend MuscleMap to key highlighting off of — a parallel field
+    alongside the existing display-name strings, not a replacement. Used by
+    list_exercises; kept separate from _muscles_for_exercise (which stays
+    string-only for the RAG-context callers) to avoid a second query there."""
+    with db_lock:
+        cur.execute("""
+                    SELECT me.role, m.muscle_id, m.muscle_name
+                    FROM muscles_exercised me
+                    JOIN muscles m ON m.muscle_id = me.muscle_id
+                    WHERE me.exercise_id = %s
+                    ORDER BY m.muscle_name
+                    """, (exercise_id,))
+        rows = cur.fetchall()
+
+    names = {"Primary": [], "Secondary": [], "Stabiliser": []}
+    ids = {"Primary": [], "Secondary": [], "Stabiliser": []}
+    for role, muscle_id, muscle_name in rows:
+        names[role].append(muscle_name)
+        ids[role].append(muscle_id)
+
+    display = {role: ", ".join(names[role]) or "none listed" for role in names}
+    return display, ids
+
+
 def list_exercises():
     """Returns a list of dictionaries of all exercises within the database
     for searching and browsing within the 'Exercises' tab"""
@@ -511,6 +537,7 @@ def list_exercises():
         exercises = []
 
         for ex_id, name, description, type_, difficulty, equipment in rows:
+            muscles, muscle_ids = _muscle_roles_for_exercise(ex_id)
             exercises.append({
                 "id": ex_id,
                 "name": name,
@@ -518,7 +545,8 @@ def list_exercises():
                 "type": type_,
                 "difficulty": difficulty,
                 "equipment": equipment,
-                "muscles": _muscles_for_exercise(ex_id)
+                "muscles": muscles,
+                "muscle_ids": muscle_ids,
             })
     return exercises
 

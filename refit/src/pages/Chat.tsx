@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, type ChangeEvent } from 'react'
+import { useState, useEffect, useRef, type ChangeEvent, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
+import ExerciseDetail, { type Exercise } from '../components/ExerciseDetail'
 
 
 type Message = {
@@ -8,6 +9,36 @@ type Message = {
     pulsing?: boolean // ? means optional
     mediaUrl?: string
     mediaType?: "image" | "video"
+    // exercise names the backend grounded THIS reply on (see the EXERCISES:
+    // sentinel token below) — tappable in the rendered text, opening the same
+    // ExerciseDetail/MuscleMap the Exercises tab uses
+    linkableExercises?: string[]
+}
+
+// wraps any occurrence of a known exercise name inside text children with a
+// tappable span — mirrors the existing #plans/#nutrition link-interception
+// idea, but for plain prose rather than markdown links, since the model names
+// exercises in running text, not as [links](to them)
+function linkify(children: ReactNode, names: string[] | undefined, onPick: (name: string) => void): ReactNode {
+    if (!names || names.length === 0) return children
+    // longest name first, so "Barbell Bench Press" wins over a bare "Bench Press"
+    const sorted = [...names].sort((a, b) => b.length - a.length)
+    const pattern = new RegExp(`(${sorted.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi")
+
+    function linkifyString(text: string, key: string): ReactNode[] {
+        const parts = text.split(pattern)
+        return parts.map((part, i) => {
+            const match = sorted.find(n => n.toLowerCase() === part.toLowerCase())
+            return match
+                ? <a key={`${key}-${i}`} href="#exercise" onClick={e => { e.preventDefault(); onPick(match) }}>{part}</a>
+                : part
+        })
+    }
+
+    const arr = Array.isArray(children) ? children : [children]
+    return arr.flatMap((child, i) =>
+        typeof child === "string" ? linkifyString(child, String(i)) : child
+    )
 }
 
 type Choices = {
@@ -27,6 +58,16 @@ function Chat({ goToPlans, goToNutrition, userId }: {
     const [message, setMessage] = useState<string>("")
     const bottomRef = useRef<HTMLDivElement>(null)
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+    const [exercises, setExercises] = useState<Exercise[]>([])
+    const [openedExercise, setOpenedExercise] = useState<Exercise | null>(null)
+
+    useEffect(() => {
+        async function load() {
+            const res = await fetch("http://localhost:8000/exercises")
+            setExercises(await res.json())
+        }
+        load()
+    }, [])
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -51,6 +92,23 @@ function Chat({ goToPlans, goToNutrition, userId }: {
             copy[copy.length - 1] = { role: "bot", content, pulsing }
             return copy
         })
+    }
+
+    // patches linkableExercises onto the last message without touching its
+    // content — the EXERCISES: token always arrives after the real text, once
+    // per turn, so there's nothing else left to preserve
+    function updateLastBotExercises(names: string[]) {
+        setMessages(prev => {
+            const copy = [...prev]
+            const last = copy[copy.length - 1]
+            copy[copy.length - 1] = { ...last, linkableExercises: names }
+            return copy
+        })
+    }
+
+    function openExerciseByName(name: string) {
+        const found = exercises.find(ex => ex.name.toLowerCase() === name.toLowerCase())
+        if (found) setOpenedExercise(found)
     }
 
 
@@ -109,6 +167,8 @@ function Chat({ goToPlans, goToNutrition, userId }: {
                 const [msg, namesStr] = token.replace("CHOICES:", "").split("|")
                 setChoices({ message: msg, names: namesStr.split(",") })
                 updateLastBot("", false)
+            } else if (token.startsWith("EXERCISES:")) {
+                updateLastBotExercises(token.replace("EXERCISES:", "").split(","))
             } else {
                 if (isStatus) { botText = ""; isStatus = false }  // first real token clears status
                 botText += token
@@ -182,11 +242,37 @@ function Chat({ goToPlans, goToNutrition, userId }: {
                                     return jump
                                         ? <a href={href} onClick={e => { e.preventDefault(); jump() }}>{children}</a>
                                         : <a href={href}>{children}</a>
-                                }
+                                },
+                                // make known exercise names tappable wherever they appear
+                                // in the model's prose — opens the same ExerciseDetail/
+                                // MuscleMap the Exercises tab uses
+                                p: ({ children }) => <p>{linkify(children, m.linkableExercises, openExerciseByName)}</p>,
+                                li: ({ children }) => <li>{linkify(children, m.linkableExercises, openExerciseByName)}</li>,
                             }}
                         >{m.content}</ReactMarkdown>
                     </div>
             ))}
+
+            {openedExercise && (
+                <div
+                    onClick={() => setOpenedExercise(null)}
+                    style={{
+                        position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)",
+                        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: "rgb(255,255,232)", borderRadius: "16px", padding: "20px",
+                            width: "min(90vw, 420px)", maxHeight: "80vh", overflowY: "auto",
+                            boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
+                        }}
+                    >
+                        <ExerciseDetail ex={openedExercise} onClose={() => setOpenedExercise(null)} />
+                    </div>
+                </div>
+            )}
 
             {choices && <ChoiceButtons choices={choices} onPick={handleChoice} />}
             <div ref={bottomRef} />
