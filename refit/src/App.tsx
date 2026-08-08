@@ -6,9 +6,6 @@ import Nutrition from './pages/Nutrition'
 
 type User = { user_id: number, full_name: string }
 
-// dev-only avatars for the seeded personas (evaluation/personas.md, persona.md).
-// Keyed by user_id rather than derived from full_name since "Li Suping" puts the
-// family name first, unlike the others.
 const AVATARS: Record<number, string> = {
   1: "Sam.png",
   2: "Leo.png",
@@ -45,9 +42,7 @@ function App() {
     setActiveTab("plans")
   }
 
-  // handed to Chat so a confirmed food log can link straight to the fresh totals
   const goToNutrition = () => {
-    setNutritionNonce(n => n + 1)
     setActiveTab("nutrition")
   }
 
@@ -71,7 +66,7 @@ function App() {
         </div>
 
         <div style={{ display: activeTab === "chat" ? "contents" : "none" }}>
-          <Chat goToPlans={goToPlans} goToNutrition={goToNutrition} userId={userId} />
+          <Chat goToPlans={goToPlans} userId={userId} />
         </div>
         <div style={{ display: activeTab === "exercises" ? "contents" : "none" }}>
           <Exercises />
@@ -80,7 +75,7 @@ function App() {
           <Plans refreshSignal={planNonce} userId={userId} />
         </div>
         <div style={{ display: activeTab === "nutrition" ? "contents" : "none" }}>
-          <Nutrition userId={userId} refreshSignal={nutritionNonce} />
+          <Nutrition />
         </div>
 
       </div>

@@ -4,8 +4,8 @@ Disclaimer calibration policy for ReFit.
 Single source of truth for WHEN an exercise-advice answer should carry a medical
 caveat, and what shape that caveat takes. Three consumers:
 
-  1. DPO data generation — POLICY_PROMPT is the system prompt for the `chosen`
-     arm. The `rejected` arm is the same query against base llama3.1 with no policy.
+  1. DPO data generation — POLICY_PROMPT is the system prompt for the 'chosen'
+     arm. The 'rejected' arm is the same query against base llama3.1 with no policy.
   2. Offline evaluation — TIERS is the judge's rubric for scoring referral
      appropriateness.
   3. Gotta quote this file in the diss
@@ -19,10 +19,6 @@ Clinical triggers below are drawn from ACSM preparticipation screening and stand
 musculoskeletal red flags. VERIFY EVERY CITATION against the source before it goes
 in the bibliography — these were written from domain knowledge, not from the papers.
 """
-
-# ---------------------------------------------------------------------------
-# The policy, as handed to the generator for the `chosen` arm.
-# ---------------------------------------------------------------------------
 
 POLICY_PROMPT = """You are advising on exercise and training. Apply the following
 disclaimer policy exactly. The policy decides how much medical caution an answer
@@ -76,11 +72,6 @@ RULES ACROSS ALL TIERS
   detail, examples and structure you would normally give. The caveat is IN
   ADDITION to a complete answer, never a substitute for one."""
 
-
-# ---------------------------------------------------------------------------
-# Machine-readable tier definitions. Seeds the generation grid; doubles as the
-# judge rubric at eval time.
-# ---------------------------------------------------------------------------
 
 TIERS = {
     0: {
@@ -151,16 +142,6 @@ TIERS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Contrast pairs — the highest-value training signal.
-#
-# Same surface query, different stated context, different tier. These teach the
-# boundary rather than a disposition, and they are the cases where base llama3.1
-# most reliably fails (it tiers on topic keywords, not on context).
-#
-# Overweight these in the seed grid.
-# ---------------------------------------------------------------------------
-
 CONTRAST_PAIRS = [
     {
         "query": "Is it safe for me to squat?",
@@ -195,13 +176,6 @@ CONTRAST_PAIRS = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Generation constraints.
-# ---------------------------------------------------------------------------
-
-# DPO learns whatever separates chosen from rejected. If the chosen arm is
-# systematically terser than the hedge-heavy rejected arm, the tune learns
-# "be brief" instead of "calibrate". Enforced at dataset-build time, not by hope.
 LENGTH_RATIO_TOLERANCE = 0.25  # |len(chosen) - len(rejected)| / len(rejected)
 
 # Samples to run before full run to not waste computing time

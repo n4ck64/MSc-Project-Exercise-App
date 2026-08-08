@@ -1,13 +1,5 @@
 """
-Imports the CoFID 2021 nutrition dataset (McCance & Widdowson's Composition of
-Foods) from the source Excel file into the 'foods' table.
-
-Unlike the exercise CSVs, the CoFID spreadsheet needs two bits of special
-handling:
-  * the '1.3 Proximates' sheet has a 3-row header, so data starts on row 4
-    (skiprows=3), and columns are selected by position rather than by name;
-  * cells use sentinel values that are not numbers -- 'Tr' (trace) is treated
-    as 0, and 'N' (present but unmeasured) or blanks become NULL.
+Imports the CoFID 2021 nutrition dataset  from the source Excel file into the 'foods' table.
 """
 
 import getpass

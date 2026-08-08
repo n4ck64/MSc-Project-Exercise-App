@@ -287,23 +287,45 @@ def get_food_id(food_name):
     return row[0] if row else None
 
 
-def search_foods(query, top_k=8):
-    """Structured food search for the Nutrition tab's log form — the same
-    embedding lookup as retrieve_foods, but returning rows the UI can render and
-    post back by id, rather than the formatted string the LLM pipeline consumes."""
-    response = ollama.embed(model="nomic-embed-text",
-                            input=f"search_query: {query}")
-    embedding = response.embeddings[0]
+"""def list_foods():
+    returns a list of dictionaries of all foods within the database
+    for searching and browsing within the Nutrition tab,
+
     with db_lock:
         cur.execute(f"""
-                    SELECT id, food_name, {_MACRO_COLUMNS}
-                    FROM foods
-                    ORDER BY embedding <=> %s::vector
-                    LIMIT %s
-                    """, (embedding, top_k))
+# SELECT id, food_name, {_MACRO_COLUMNS}
+# FROM foods
+# ORDER BY embedding <= > % s: : vector
+# LIMIT % s
+""", (embedding, top_k))
+    rows = cur.fetchall()
+return [{"food_id": food_id, "food_name": name, **_scale_macros(macros, 100)}
+        for food_id, name, *macros in rows]
+
+with db_lock:
+    cur.execute("""
+# SELECT exercise_id, exercise_name, description, type, difficulty, equipment
+# FROM exercises
+# ORDER BY exercise_name
+""")
+
         rows = cur.fetchall()
-    return [{"food_id": food_id, "food_name": name, **_scale_macros(macros, 100)}
-            for food_id, name, *macros in rows]
+
+        exercises = []
+
+        for ex_id, name, description, type_, difficulty, equipment in rows:
+            muscles, muscle_ids = _muscle_roles_for_exercise(ex_id)
+            exercises.append({
+                "id": ex_id,
+                "name": name,
+                "description": description,
+                "type": type_,
+                "difficulty": difficulty,
+                "equipment": equipment,
+                "muscles": muscles,
+                "muscle_ids": muscle_ids,
+            })
+    return exercises"""
 
 
 def effective_targets(user_id):
@@ -385,117 +407,6 @@ def daily_gaps_for_food(user_id, food_name, grams=100):
                         compute_macro_gaps(targets, consumed))
 
 
-def daily_totals(user_id, on_date=None):
-    """Sums everything a user logged on a date into the same nutrient-keyed shape
-    get_food_macros returns, so it drops straight into compute_macro_gaps. A day
-    with no entries totals zero rather than returning nothing, so the caller can
-    render an empty day without special-casing it."""
-    on_date = on_date or date.today()
-    with db_lock:
-        cur.execute("""
-                    SELECT COALESCE(SUM(foods.kcal           * food_log.grams / 100.0), 0),
-                           COALESCE(SUM(foods.protein_g      * food_log.grams / 100.0), 0),
-                           COALESCE(SUM(foods.fat_g          * food_log.grams / 100.0), 0),
-                           COALESCE(SUM(foods.carb_g         * food_log.grams / 100.0), 0),
-                           COALESCE(SUM(foods.total_sugars_g * food_log.grams / 100.0), 0),
-                           COALESCE(SUM(COALESCE(foods.fibre_aoac_g, foods.fibre_nsp_g)
-                                                                 * food_log.grams / 100.0), 0)
-                    FROM food_log
-                    JOIN foods ON foods.id = food_log.food_id
-                    WHERE food_log.user_id = %s AND food_log.logged_on = %s
-                    """, (user_id, on_date))
-        row = cur.fetchone()
-    nutrients = ("energy_kcal", "protein_g", "fat_g",
-                 "carb_g", "total_sugars_g", "fibre_g")
-    return {nutrient: round(value, 1) for nutrient, value in zip(nutrients, row)}
-
-
-def list_log(user_id, on_date=None):
-    """The individual entries a user logged on a date, for rendering and deleting
-    them in the Nutrition tab."""
-    on_date = on_date or date.today()
-    with db_lock:
-        cur.execute("""
-                    SELECT food_log.log_id, foods.food_name, food_log.grams,
-                           foods.kcal * food_log.grams / 100.0
-                    FROM food_log
-                    JOIN foods ON foods.id = food_log.food_id
-                    WHERE food_log.user_id = %s AND food_log.logged_on = %s
-                    ORDER BY food_log.logged_at
-                    """, (user_id, on_date))
-        rows = cur.fetchall()
-    return [{"log_id": log_id, "food_name": name, "grams": grams,
-             "energy_kcal": round(kcal, 1) if kcal is not None else None}
-            for log_id, name, grams, kcal in rows]
-
-
-def weekly_totals(user_id, end_date=None):
-    """The rolling 7 days ending on end_date inclusive: each day's totals plus the
-    7-day mean per nutrient. The mean matters because the PHE values are stated as
-    population AVERAGE intakes, not per-day pass/fail limits, so a weekly average
-    is the comparison the guideline actually supports."""
-    end_date = end_date or date.today()
-    days = [{"date": (end_date - timedelta(days=offset)).isoformat(),
-             "totals": daily_totals(user_id, end_date - timedelta(days=offset))}
-            for offset in range(6, -1, -1)]
-    average = {nutrient: round(sum(day["totals"][nutrient] for day in days) / len(days), 1)
-               for nutrient in days[0]["totals"]}
-    return {"days": days, "average": average}
-
-
-def daily_progress_summary(user_id, on_date=None):
-    """Readable summary of everything logged on a date against the user's daily
-    targets — the whole-day twin of daily_gaps_for_food. Backs the chat router's
-    day_progress tool ("how am I doing today")."""
-    on_date = on_date or date.today()
-    targets = effective_targets(user_id)
-    if targets is None:
-        return "No user record or date of birth on file."
-    entries = list_log(user_id, on_date)
-    if not entries:
-        return f"Nothing logged for {on_date.isoformat()} yet."
-    consumed = daily_totals(user_id, on_date)
-    header = (f"Logged so far on {on_date.isoformat()} ({len(entries)} "
-              f"item{'' if len(entries) == 1 else 's'}) vs daily guideline:")
-    return (f"{_format_gaps(header, compute_macro_gaps(targets, consumed))}\n"
-            f"  {_NUTRIENT_LABELS['total_sugars_g']}: {consumed['total_sugars_g']} "
-            f"(tracked only — no comparable UK guideline, see UNTARGETED_NUTRIENTS)")
-
-
-def _targets_payload(targets):
-    """Flattens {nutrient: (value, limit_type)} into JSON objects for the frontend."""
-    return {nutrient: {"value": value, "limit_type": limit_type}
-            for nutrient, (value, limit_type) in targets.items()}
-
-
-def day_view(user_id, on_date=None):
-    """Everything the Nutrition tab renders for one day in a single payload: the
-    entries, the running totals, the user's targets and the gaps against them.
-    'untargeted' lists the nutrients that are tracked but have no target, so the
-    page knows to render them as bare numbers rather than progress bars instead of
-    hardcoding that rule. targets/gaps come back empty when the user has no DOB."""
-    on_date = on_date or date.today()
-    totals = daily_totals(user_id, on_date)
-    targets = effective_targets(user_id) or {}
-    return {"date": on_date.isoformat(),
-            "entries": list_log(user_id, on_date),
-            "totals": totals,
-            "targets": _targets_payload(targets),
-            "gaps": compute_macro_gaps(targets, totals),
-            "untargeted": sorted(set(totals) - set(targets))}
-
-
-def week_view(user_id, end_date=None):
-    """The rolling 7 days ending on end_date for the Nutrition tab's weekly view.
-    Gaps are computed on the weekly MEAN rather than per day — see weekly_totals."""
-    week = weekly_totals(user_id, end_date)
-    targets = effective_targets(user_id) or {}
-    return {**week,
-            "targets": _targets_payload(targets),
-            "average_gaps": compute_macro_gaps(targets, week["average"]),
-            "untargeted": sorted(set(week["average"]) - set(targets))}
-
-
 def _muscle_roles_for_exercise(exercise_id):
     """Like _muscles_for_exercise but also returns the raw muscle_ids per role,
     for the frontend MuscleMap to key highlighting off of — a parallel field
@@ -549,6 +460,29 @@ def list_exercises():
                 "muscle_ids": muscle_ids,
             })
     return exercises
+
+
+PROFILE_SLOTS = ("conditions", "medications", "injuries", "goals", "equipment",
+                 "constraints", "other")
+
+
+def get_user_profile(user_id):
+    """Returns the accumulated profile as a dict of slot -> list of strings.
+    Missing slots come back empty, so a caller never has to guard for them."""
+    with db_lock:
+        cur.execute(
+            "SELECT profile FROM user_profile WHERE user_id = %s", (user_id,))
+        row = cur.fetchone()
+    stored = row[0] if row and row[0] else {}
+    return {slot: list(stored.get(slot) or []) for slot in PROFILE_SLOTS}
+
+
+def format_user_profile(profile):
+    """Renders a profile for a prompt. Returns "" when nothing is known, so the
+    caller can inject it unconditionally without emitting an empty heading."""
+    lines = [f"- {slot.capitalize()}: {'; '.join(values)}"
+             for slot, values in profile.items() if values]
+    return "\n".join(lines)
 
 
 def get_user_plan(user_id):

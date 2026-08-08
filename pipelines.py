@@ -9,12 +9,13 @@ from prompts_and_schemas import *
 from retrieval import (retrieve_exercises, retrieve_exercise_names,
                        retrieve_exercise_description, retrieve_foods,
                        get_food_macros, daily_gaps_for_food, resolve_food_name,
-                       daily_progress_summary, get_food_id, get_food_macros_by_id,
-                       FOOD_MATCH_MAX_DISTANCE,
-                       get_user_plan_rows, resolve_exercise_name, get_exercise_id)
+                       get_user_profile, get_user_plan_rows,
+                       resolve_exercise_name, get_exercise_id)
 from memory import Memory
 from llm import structured_chat
-from user_data import clear_exercise_ratings, save_plan, apply_plan_edits, log_food
+from user_data import (clear_exercise_ratings, save_plan,
+                       apply_plan_edits, save_user_profile)
+import json
 from classification import (classify_intent, classify_injured_muscle, condense_query,
                             classify_target_muscle, answers_pending_question,
                             classify_confirmation)
@@ -94,6 +95,7 @@ def run_chat_pipeline(user_input, user_id=1):
 
     yield "Classifying User Query..."
 
+    Memory.last_intent = intent
     logging.debug(f"Intent classified as: {intent}")
 
     if intent in ("EXERCISE_INJURY"):
@@ -162,10 +164,7 @@ def run_chat_pipeline(user_input, user_id=1):
         # below is the result of the SQL queries
         rag_context = f"Relevant exercises:\n\n{retrieved}"
 
-    # names the answerer/reviewer is grounded on for THIS turn so the frontend can
-    # make them tappable in chat, opening the same ExerciseDetail/MuscleMap the
-    # Exercises tab uses. Sent as an EXERCISES: sentinel token after the real
-    # response, mirroring the CHOICES: token pattern.
+    # highlights the retrieved exercises used in chat, so they can be clickable in chat
     Memory.last_exercises = [
         line.replace("Exercise: ", "")
         for line in (retrieved or "").split("\n")
@@ -299,6 +298,33 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
         ]
 
 
+def update_user_profile(user_input, user_id):
+    """Merges anything the user just said about themselves into their stored profile.
+
+    Runs on the raw message, before answering, so a fact disclosed this turn is
+    available to this turn's answer. The extractor is given the existing profile and
+    returns the merge — see PROFILE_PROMPT; writing only the new facts would drop
+    everything learned earlier.
+
+    Never fatal: a profile that fails to update is worth less than an answer, so a
+    bad extraction degrades tailoring rather than breaking the reply.
+    """
+    existing = get_user_profile(user_id)
+    try:
+        merged = structured_chat(
+            "llama3.1", PROFILE_PROMPT,
+            f"Profile so far:\n{json.dumps(existing)}\n\nUser message: {user_input}",
+            PROFILE_SCHEMA)
+    except Exception as exc:
+        logging.warning(f"Profile extraction failed, keeping existing: {exc}")
+        return existing
+
+    if merged != existing:
+        save_user_profile(user_id, merged)
+        logging.debug(f"Profile updated for user {user_id}: {merged}")
+    return merged
+
+
 def route_nutrition(user_input, user_id=1):
     """Tool that determines which nutrition function to run based on the user query.
     Once llama3.1 picks the tool, hard-coded python code extracts the needed information.
@@ -349,37 +375,6 @@ def route_nutrition(user_input, user_id=1):
         logging.debug(
             f"Found Gaps: {daily_gaps_for_food(user_id, food_name, grams)}")
         return tool, daily_gaps_for_food(user_id, food_name, grams)
-
-    if tool == "day_progress":
-        # everything in today's food diary against the user's targets — the
-        # whole-day counterpart to daily_gaps, which scores one named food
-        summary = daily_progress_summary(user_id)
-        logging.debug(f"Day progress: {summary}")
-        return tool, summary
-
-    if tool == "log_food":
-        # The only tool that WRITES. Nothing is inserted here: the resolved food is
-        # stashed on Memory.pending_food_log and the user is asked to confirm, so a
-        # mis-resolved name costs a "no" rather than a wrong row in their diary.
-        if not food_name:
-            return tool, "I couldn't tell which food you meant — what did you have?"
-        canonical = (food_name if get_food_id(food_name)
-                     else resolve_food_name(food_name,
-                                            max_distance=FOOD_MATCH_MAX_DISTANCE))
-        food_id = get_food_id(canonical) if canonical else None
-        if food_id is None:
-            return tool, f"I couldn't find '{food_name}' in the UK food database."
-
-        macros = get_food_macros_by_id(food_id, grams) or {}
-        kcal = macros.get("energy_kcal")
-        protein = macros.get("protein_g")
-        detail = (f" — {kcal} kcal" + (f", {protein}g protein" if protein is not None else "")
-                  if kcal is not None else "")
-        question = f"Log {grams}g of {canonical}?"
-        Memory.pending_food_log = {"food_id": food_id, "food_name": canonical,
-                                   "grams": grams, "question": question}
-        return tool, (f"**{question}**{detail}\n\n"
-                      f"*Reply yes to add it to today's diary.*")
 
     if tool == "food_search":
         # retrieves the three most relevant foods based on the user's query

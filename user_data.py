@@ -3,6 +3,7 @@ Database WRITE operations for user-generated data.
 """
 
 from datetime import date
+import json
 
 from retrieval import (conn, cur, db_lock, get_food_id, resolve_food_name,
                        FOOD_MATCH_MAX_DISTANCE)
@@ -37,86 +38,19 @@ def clear_exercise_ratings(user_id):
         conn.commit()
 
 
-def log_food(user_id, grams, food_id=None, food_name=None, on_date=None):
-    """Logs a food against a user's day, identified either by food_id or by name.
-    'on_date' defaults to today. Returns the new entry, or None if nothing matched.
-    Unlike the other writers here, this rolls back on failure: the connection is
-    shared process-wide, so a poisoned transaction would take every later query
-    with it, and the diary writes far more often than plans or ratings do."""
-    if food_id is None:
-        if food_name is None:
-            raise ValueError("log_food needs either a food_id or a food_name")
-        # thresholded, unlike the read-side callers: nearest-neighbour search
-        # always returns its closest row, so an unbounded resolve would put a
-        # food the user never ate in their diary rather than reporting no match
-        resolved = resolve_food_name(
-            food_name, max_distance=FOOD_MATCH_MAX_DISTANCE)
-        food_id = get_food_id(food_name) or (
-            get_food_id(resolved) if resolved else None)
-    if food_id is None:
-        return None
+def save_user_profile(user_id, profile):
+    """Upserts the whole profile object. The merge happens upstream in the extractor,
+    which sees the existing profile — writing a partial object here would silently
+    drop slots the user mentioned in earlier turns."""
     with db_lock:
         try:
-            # date.today() rather than Postgres CURRENT_DATE to avoid timezone shenanigans
             cur.execute("""
-                        INSERT INTO food_log (user_id, food_id, grams, logged_on)
-                        VALUES (%s, %s, %s, %s)
-                        RETURNING log_id
-                        """, (user_id, food_id, grams, on_date or date.today()))
-            log_id = cur.fetchone()[0]
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-    return {"log_id": log_id, "food_id": food_id, "grams": grams}
-
-
-def delete_log_entry(user_id, log_id):
-    """Removes one logged food. Scoped by user_id as well as log_id so a user can
-    only ever delete their own entries. Returns True if a row was actually
-    deleted, False if the entry does not exist or belongs to someone else."""
-    with db_lock:
-        try:
-            cur.execute("DELETE FROM food_log WHERE log_id = %s AND user_id = %s",
-                        (log_id, user_id))
-            deleted = cur.rowcount > 0
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-    return deleted
-
-
-def set_nutrition_targets(user_id, targets):
-    """Nothing calls this yet — the daily goal is currently the PHE baseline. It is
-    the write path the cut/maintain/bulk goal flow will use."""
-    for nutrient, (_, limit_type) in targets.items():
-        if limit_type not in VALID_LIMIT_TYPES:
-            raise ValueError(f"limit_type for {nutrient} must be one of "
-                             f"{sorted(VALID_LIMIT_TYPES)}, got {limit_type!r}")
-    with db_lock:
-        try:
-            for nutrient, (value, limit_type) in targets.items():
-                cur.execute("""
-                            INSERT INTO user_nutrition_targets (user_id, nutrient, value, limit_type)
-                            VALUES (%s, %s, %s, %s)
-                            ON CONFLICT (user_id, nutrient)
-                            DO UPDATE SET value = EXCLUDED.value,
-                                          limit_type = EXCLUDED.limit_type
-                            """, (user_id, nutrient, value, limit_type))
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
-
-def clear_nutrition_targets(user_id):
-    """Drops a user's target overrides, reverting them to the PHE population
-    guideline for their sex and age."""
-    with db_lock:
-        try:
-            cur.execute(
-                "DELETE FROM user_nutrition_targets WHERE user_id = %s", (user_id,))
+                        INSERT INTO user_profile (user_id, profile, updated_at)
+                        VALUES (%s, %s, now())
+                        ON CONFLICT (user_id)
+                        DO UPDATE SET profile = EXCLUDED.profile,
+                                      updated_at = now()
+                        """, (user_id, json.dumps(profile)))
             conn.commit()
         except Exception:
             conn.rollback()
