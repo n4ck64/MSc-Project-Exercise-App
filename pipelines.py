@@ -47,28 +47,6 @@ def run_chat_pipeline(user_input, user_id=1):
         yield from run_plan_pipeline(user_input, user_id)
         return
 
-    # checker for questions, if the question is answered, it proceeds with the edit
-    # if it gets stuck in a loop, _MAX_EDIT_CLARIFICATIONS provides an escape
-    # if user_input is irrelevant, plan-making ceases and directs to standard
-    # intent classification
-    # A food-log confirmation is consumed by the very next message whatever it says:
-    # 'yes' writes the row, 'no' drops it, anything else drops it and falls through to
-    # normal classification. Unlike pending_edit there is no turns counter, because the
-    # question is asked exactly once and never re-asked — nothing can loop.
-    if Memory.pending_food_log is not None:
-        pending = Memory.pending_food_log
-        Memory.pending_food_log = None
-        decision = classify_confirmation(pending["question"], user_input)
-        logging.debug(f"Food-log confirmation: {decision} for {pending}")
-        if decision == "yes":
-            log_food(user_id, pending["grams"], food_id=pending["food_id"])
-            yield (f"Logged {pending['grams']}g of {pending['food_name']}.\n\n"
-                   f"*Open the [Nutrition](#nutrition) tab to see today's totals.*")
-            return
-        if decision == "no":
-            yield "Okay — nothing logged."
-            return
-
     if Memory.pending_edit is not None:
         pending = Memory.pending_edit
         if pending["turns"] >= _MAX_EDIT_CLARIFICATIONS:

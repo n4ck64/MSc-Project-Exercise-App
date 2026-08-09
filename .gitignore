@@ -9,9 +9,11 @@ jupyter_testing_ground.ipynb
 refit.log
 *.pdf
 docs/encryption-design-note.md
-evaluation/
 .claude/launch.json
 paper/refit.tex
 paper/IEEEtran.cls
 paper/.gitignore
 migrations/002_nutrition_log.sql
+evaluation/seed_user.sql
+evaluation/seed_users.sql
+evaluation/arms.py

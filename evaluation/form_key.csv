@@ -1,0 +1,11 @@
+item,question_id,target_tier,response_A,response_B,A_words,B_words
+1,1,0,full,base,65,198
+2,3,0,full,base,107,170
+3,7,1,full,base,125,267
+4,9,1,base,full,45,110
+5,10,1,full,base,100,36
+6,12,2,base,full,177,98
+7,13,2,base,full,50,94
+8,14,2,base,full,34,174
+9,17,3,full,base,109,406
+10,19,3,base,full,424,122

@@ -1,0 +1,302 @@
+234 rows in plan, 0 already done, 234 to run
+[  1/234] exercise  rung 1 sam     q1 ... 7.7s, 5 words  MISROUTED -> PLAN_EDIT
+[  2/234] exercise  rung 1 sam     q2 ... 10.2s, 307 words
+[  3/234] exercise  rung 1 sam     q3 ... 13.0s, 341 words
+[  4/234] exercise  rung 1 sam     q4 ... 11.0s, 271 words
+[  5/234] exercise  rung 1 sam     q5 ... 5.7s, 18 words  MISROUTED -> PLAN_GENERAL
+[  6/234] exercise  rung 1 sam     q6 ... 15.7s, 485 words
+[  7/234] exercise  rung 1 sam     q7 ... 10.5s, 242 words
+[  8/234] exercise  rung 1 sam     q8 ... 10.2s, 217 words
+[  9/234] exercise  rung 1 sam     q9 ... 4.7s, 25 words
+[ 10/234] exercise  rung 1 sam     q10 ... 10.7s, 209 words
+[ 11/234] exercise  rung 1 sam     q11 ... 13.0s, 299 words
+[ 12/234] exercise  rung 1 sam     q12 ... 6.9s, 101 words
+[ 13/234] exercise  rung 1 sam     q13 ... 8.8s, 167 words
+[ 14/234] exercise  rung 1 sam     q14 ... 4.9s, 36 words
+[ 15/234] exercise  rung 1 sam     q15 ... 13.5s, 353 words
+[ 16/234] exercise  rung 1 sam     q16 ... 10.1s, 67 words
+[ 17/234] exercise  rung 1 sam     q17 ... 8.3s, 221 words
+[ 18/234] exercise  rung 1 sam     q18 ... 12.0s, 268 words
+[ 19/234] exercise  rung 1 sam     q19 ... 9.1s, 206 words
+[ 20/234] exercise  rung 1 sam     q20 ... 17.9s, 477 words
+[ 21/234] exercise  rung 2 sam     q1 ... 7.3s, 5 words  MISROUTED -> PLAN_EDIT
+[ 22/234] exercise  rung 2 sam     q2 ... 24.3s, 180 words
+[ 23/234] exercise  rung 2 sam     q3 ... 33.2s, 236 words
+[ 24/234] exercise  rung 2 sam     q4 ... 29.5s, 227 words
+[ 25/234] exercise  rung 2 sam     q5 ... 6.0s, 18 words  MISROUTED -> PLAN_GENERAL
+[ 26/234] exercise  rung 2 sam     q6 ... 31.3s, 249 words
+[ 27/234] exercise  rung 2 sam     q7 ... 35.2s, 262 words
+[ 28/234] exercise  rung 2 sam     q8 ... 40.6s, 338 words
+[ 29/234] exercise  rung 2 sam     q9 ... 13.6s, 88 words
+[ 30/234] exercise  rung 2 sam     q10 ... 30.9s, 271 words
+[ 31/234] exercise  rung 2 sam     q11 ... 23.8s, 230 words
+[ 32/234] exercise  rung 2 sam     q12 ... 25.4s, 67 words
+[ 33/234] exercise  rung 2 sam     q13 ... 36.4s, 291 words
+[ 34/234] exercise  rung 2 sam     q14 ... 15.8s, 102 words
+[ 35/234] exercise  rung 2 sam     q15 ... 20.0s, 66 words  MISROUTED -> PLAN_INJURY
+[ 36/234] exercise  rung 2 sam     q16 ... 24.6s, 128 words
+[ 37/234] exercise  rung 2 sam     q17 ... 20.3s, 171 words
+[ 38/234] exercise  rung 2 sam     q18 ... 25.3s, 192 words
+[ 39/234] exercise  rung 2 sam     q19 ... 38.8s, 334 words
+[ 40/234] exercise  rung 2 sam     q20 ... 20.0s, 114 words
+[ 41/234] exercise  rung 3 sam     q1 ... 8.1s, 5 words  MISROUTED -> PLAN_EDIT
+[ 42/234] exercise  rung 3 sam     q2 ... 40.4s, 293 words
+[ 43/234] exercise  rung 3 sam     q3 ... 27.4s, 51 words
+[ 44/234] exercise  rung 3 sam     q4 ... 29.5s, 65 words
+[ 45/234] exercise  rung 3 sam     q5 ... 6.0s, 18 words  MISROUTED -> PLAN_GENERAL
+[ 46/234] exercise  rung 3 sam     q6 ... 24.6s, 36 words
+[ 47/234] exercise  rung 3 sam     q7 ... 33.1s, 266 words
+[ 48/234] exercise  rung 3 sam     q8 ... 27.3s, 47 words
+[ 49/234] exercise  rung 3 sam     q9 ... 33.1s, 129 words
+[ 50/234] exercise  rung 3 sam     q10 ... 26.6s, 69 words
+[ 51/234] exercise  rung 3 sam     q11 ... 62.1s, 497 words
+[ 52/234] exercise  rung 3 sam     q12 ... 42.3s, 295 words
+[ 53/234] exercise  rung 3 sam     q13 ... 37.9s, 273 words
+[ 54/234] exercise  rung 3 sam     q14 ... 17.7s, 95 words
+[ 55/234] exercise  rung 3 sam     q15 ... 39.4s, 324 words
+[ 56/234] exercise  rung 3 sam     q16 ... 24.8s, 109 words
+[ 57/234] exercise  rung 3 sam     q17 ... 29.0s, 160 words
+[ 58/234] exercise  rung 3 sam     q18 ... 33.0s, 200 words
+[ 59/234] exercise  rung 3 sam     q19 ... 28.0s, 58 words
+[ 60/234] exercise  rung 3 sam     q20 ... 29.0s, 36 words
+[ 61/234] exercise  rung 4 sam     q1 ... 7.5s, 5 words  MISROUTED -> PLAN_EDIT
+[ 62/234] exercise  rung 4 sam     q2 ... 22.2s, 151 words
+[ 63/234] exercise  rung 4 sam     q3 ... 27.4s, 159 words
+[ 64/234] exercise  rung 4 sam     q4 ... 34.6s, 198 words
+[ 65/234] exercise  rung 4 sam     q5 ... 6.0s, 18 words  MISROUTED -> PLAN_GENERAL
+[ 66/234] exercise  rung 4 sam     q6 ... 28.9s, 158 words
+[ 67/234] exercise  rung 4 sam     q7 ... 24.4s, 122 words
+[ 68/234] exercise  rung 4 sam     q8 ... 29.9s, 159 words
+[ 69/234] exercise  rung 4 sam     q9 ... 32.6s, 144 words
+[ 70/234] exercise  rung 4 sam     q10 ... 27.1s, 156 words
+[ 71/234] exercise  rung 4 sam     q11 ... 27.9s, 164 words
+[ 72/234] exercise  rung 4 sam     q12 ... 33.0s, 193 words
+[ 73/234] exercise  rung 4 sam     q13 ... 29.2s, 145 words
+[ 74/234] exercise  rung 4 sam     q14 ... 29.8s, 184 words
+[ 75/234] exercise  rung 4 sam     q15 ... 19.8s, 66 words  MISROUTED -> PLAN_INJURY
+[ 76/234] exercise  rung 4 sam     q16 ... 27.3s, 270 words
+[ 77/234] exercise  rung 4 sam     q17 ... 22.4s, 143 words
+[ 78/234] exercise  rung 4 sam     q18 ... 34.6s, 179 words
+[ 79/234] exercise  rung 4 sam     q19 ... 23.7s, 131 words
+[ 80/234] exercise  rung 4 sam     q20 ... 30.1s, 213 words
+[ 81/234] exercise  rung 5 sam     q1 ... 7.1s, 9 words  MISROUTED -> PLAN_EDIT
+[ 82/234] exercise  rung 5 sam     q2 ... 9.1s, 229 words
+[ 83/234] exercise  rung 5 sam     q3 ... 10.7s, 218 words
+[ 84/234] exercise  rung 5 sam     q4 ... 5.9s, 73 words
+[ 85/234] exercise  rung 5 sam     q5 ... 5.9s, 18 words  MISROUTED -> PLAN_GENERAL
+[ 86/234] exercise  rung 5 sam     q6 ... 3.1s, 47 words
+[ 87/234] exercise  rung 5 sam     q7 ... 7.0s, 106 words
+[ 88/234] exercise  rung 5 sam     q8 ... 8.4s, 158 words
+[ 89/234] exercise  rung 5 sam     q9 ... 6.5s, 89 words
+[ 90/234] exercise  rung 5 sam     q10 ... 8.2s, 132 words
+[ 91/234] exercise  rung 5 sam     q11 ... 6.0s, 75 words
+[ 92/234] exercise  rung 5 sam     q12 ... 7.1s, 109 words
+[ 93/234] exercise  rung 5 sam     q13 ... 10.9s, 244 words
+[ 94/234] exercise  rung 5 sam     q14 ... 7.6s, 133 words
+[ 95/234] exercise  rung 5 sam     q15 ... 19.8s, 66 words  MISROUTED -> PLAN_INJURY
+[ 96/234] exercise  rung 5 sam     q16 ... 8.7s, 98 words
+[ 97/234] exercise  rung 5 sam     q17 ... 7.2s, 156 words
+[ 98/234] exercise  rung 5 sam     q18 ... 6.7s, 99 words
+[ 99/234] exercise  rung 5 sam     q19 ... 9.9s, 224 words
+[100/234] exercise  rung 5 sam     q20 ... 10.6s, 234 words
+[101/234] exercise  rung 6 sam     q1 ... 6.7s, 5 words  MISROUTED -> PLAN_EDIT
+[102/234] exercise  rung 6 sam     q2 ... 19.1s, 64 words
+[103/234] exercise  rung 6 sam     q3 ... 22.5s, 92 words
+[104/234] exercise  rung 6 sam     q4 ... 20.1s, 85 words
+[105/234] exercise  rung 6 sam     q5 ... 6.0s, 18 words  MISROUTED -> PLAN_GENERAL
+[106/234] exercise  rung 6 sam     q6 ... 23.3s, 132 words
+[107/234] exercise  rung 6 sam     q7 ... 28.8s, 155 words
+[108/234] exercise  rung 6 sam     q8 ... 24.1s, 149 words
+[109/234] exercise  rung 6 sam     q9 ... 34.5s, 172 words
+[110/234] exercise  rung 6 sam     q10 ... 23.1s, 126 words
+[111/234] exercise  rung 6 sam     q11 ... 24.1s, 103 words
+[112/234] exercise  rung 6 sam     q12 ... 26.8s, 101 words
+[113/234] exercise  rung 6 sam     q13 ... 21.5s, 115 words
+[114/234] exercise  rung 6 sam     q14 ... 29.0s, 167 words
+[115/234] exercise  rung 6 sam     q15 ... 19.9s, 66 words  MISROUTED -> PLAN_INJURY
+[116/234] exercise  rung 6 sam     q16 ... 22.7s, 155 words
+[117/234] exercise  rung 6 sam     q17 ... 30.3s, 184 words
+[118/234] exercise  rung 6 sam     q18 ... 25.3s, 126 words
+[119/234] exercise  rung 6 sam     q19 ... 25.8s, 106 words
+[120/234] exercise  rung 6 sam     q20 ... 28.2s, 172 words
+[121/234] nutrition rung 1 sam     q101 ... 7.5s, 117 words
+[122/234] nutrition rung 1 sam     q102 ... 13.0s, 290 words
+[123/234] nutrition rung 1 sam     q103 ... 10.5s, 222 words
+[124/234] nutrition rung 1 sam     q104 ... 9.6s, 202 words
+[125/234] nutrition rung 1 sam     q105 ... 12.5s, 305 words
+[126/234] nutrition rung 1 sam     q106 ... 7.4s, 100 words
+[127/234] nutrition rung 1 sam     q107 ... 7.9s, 122 words
+[128/234] nutrition rung 1 sam     q108 ... 12.4s, 294 words
+[129/234] nutrition rung 1 sam     q109 ... 5.5s, 57 words
+[130/234] nutrition rung 1 sam     q110 ... 5.8s, 75 words
+[131/234] nutrition rung 2 sam     q101 ... 6.8s, 60 words
+[132/234] nutrition rung 2 sam     q102 ... 3.4s, 108 words
+[133/234] nutrition rung 2 sam     q103 ... 1.9s, 58 words
+[134/234] nutrition rung 2 sam     q104 ... 2.2s, 66 words
+[135/234] nutrition rung 2 sam     q105 ... 1.8s, 50 words
+[136/234] nutrition rung 2 sam     q106 ... 1.9s, 41 words
+[137/234] nutrition rung 2 sam     q107 ... 3.7s, 100 words
+[138/234] nutrition rung 2 sam     q108 ... 3.6s, 110 words
+[139/234] nutrition rung 2 sam     q109 ... 4.1s, 114 words
+[140/234] nutrition rung 2 sam     q110 ... 3.1s, 92 words
+[141/234] nutrition rung 3 sam     q101 ... 4.9s, 2 words
+[142/234] nutrition rung 3 sam     q102 ... 3.6s, 48 words
+[143/234] nutrition rung 3 sam     q103 ... 5.2s, 147 words
+[144/234] nutrition rung 3 sam     q104 ... 4.8s, 134 words
+[145/234] nutrition rung 3 sam     q105 ... 3.4s, 81 words
+[146/234] nutrition rung 3 sam     q106 ... 1.9s, 7 words
+[147/234] nutrition rung 3 sam     q107 ... 3.5s, 77 words
+[148/234] nutrition rung 3 sam     q108 ... 3.3s, 76 words
+[149/234] nutrition rung 3 sam     q109 ... 2.8s, 39 words
+[150/234] nutrition rung 3 sam     q110 ... 3.8s, 88 words
+[151/234] nutrition rung 4 sam     q101 ... 14.4s, 70 words
+[152/234] nutrition rung 4 sam     q102 ... 20.5s, 38 words
+[153/234] nutrition rung 4 sam     q103 ... 23.2s, 124 words
+[154/234] nutrition rung 4 sam     q104 ... 23.6s, 99 words
+[155/234] nutrition rung 4 sam     q105 ... 23.4s, 111 words
+[156/234] nutrition rung 4 sam     q106 ... 21.7s, 79 words
+[157/234] nutrition rung 4 sam     q107 ... 21.9s, 89 words
+[158/234] nutrition rung 4 sam     q108 ... 22.7s, 84 words
+[159/234] nutrition rung 4 sam     q109 ... 25.4s, 131 words
+[160/234] nutrition rung 4 sam     q110 ... 20.8s, 49 words
+[161/234] nutrition rung 5 sam     q101 ... 21.3s, 111 words
+[162/234] nutrition rung 5 sam     q102 ... 22.6s, 98 words
+[163/234] nutrition rung 5 sam     q103 ... 24.5s, 85 words
+[164/234] nutrition rung 5 sam     q104 ... 23.7s, 126 words
+[165/234] nutrition rung 5 sam     q105 ... 21.1s, 76 words
+[166/234] nutrition rung 5 sam     q106 ... 22.2s, 87 words
+[167/234] nutrition rung 5 sam     q107 ... 21.5s, 68 words
+[168/234] nutrition rung 5 sam     q108 ... 23.7s, 120 words
+[169/234] nutrition rung 5 sam     q109 ... 22.2s, 95 words
+[170/234] nutrition rung 5 sam     q110 ... 21.4s, 64 words
+[171/234] persona   rung 1 marcus  q201 ... 20.0s, 69 words  MISROUTED -> PLAN_GENERAL
+[172/234] persona   rung 1 marcus  q202 ... 8.9s, 251 words
+[173/234] persona   rung 1 marcus  q203 ... 10.5s, 234 words
+[174/234] persona   rung 1 marcus  q204 ... 20.1s, 69 words  MISROUTED -> PLAN_GENERAL
+[175/234] persona   rung 1 marcus  q205 ... 11.8s, 340 words
+[176/234] persona   rung 1 marcus  q206 ... 20.2s, 69 words  MISROUTED -> PLAN_GENERAL
+[177/234] persona   rung 1 marcus  q207 ... 11.9s, 354 words
+[178/234] persona   rung 1 marcus  q208 ... 13.4s, 341 words
+[179/234] persona   rung 1 rita    q201 ... 15.1s, 56 words  MISROUTED -> PLAN_GENERAL
+[180/234] persona   rung 1 rita    q202 ... 11.2s, 326 words
+[181/234] persona   rung 1 rita    q203 ... 14.5s, 377 words
+[182/234] persona   rung 1 rita    q204 ... 5.7s, 14 words  MISROUTED -> PLAN_GENERAL
+[183/234] persona   rung 1 rita    q205 ... 1.8s, 14 words  MISROUTED -> PLAN_GENERAL
+[184/234] persona   rung 1 rita    q206 ... 1.7s, 14 words  MISROUTED -> PLAN_GENERAL
+[185/234] persona   rung 1 rita    q207 ... 10.2s, 275 words
+[186/234] persona   rung 1 rita    q208 ... 5.6s, 14 words  MISROUTED -> PLAN_GENERAL
+[187/234] persona   rung 1 sam     q201 ... 2.2s, 18 words  MISROUTED -> PLAN_INJURY
+[188/234] persona   rung 1 sam     q202 ... 15.0s, 453 words
+[189/234] persona   rung 1 sam     q203 ... 11.1s, 268 words
+[190/234] persona   rung 1 sam     q204 ... 19.2s, 66 words  MISROUTED -> PLAN_INJURY
+[191/234] persona   rung 1 sam     q205 ... 11.6s, 352 words
+[192/234] persona   rung 1 sam     q206 ... 5.9s, 18 words  MISROUTED -> PLAN_GENERAL
+[193/234] persona   rung 1 sam     q207 ... 8.0s, 201 words
+[194/234] persona   rung 1 sam     q208 ... 19.3s, 66 words  MISROUTED -> PLAN_INJURY
+[195/234] persona   rung 1 suping  q201 ... 2.0s, 18 words  MISROUTED -> PLAN_GENERAL
+[196/234] persona   rung 1 suping  q202 ... 9.6s, 271 words
+[197/234] persona   rung 1 suping  q203 ... 12.2s, 282 words
+[198/234] persona   rung 1 suping  q204 ... 11.1s, 265 words
+[199/234] persona   rung 1 suping  q205 ... 12.4s, 310 words
+[200/234] persona   rung 1 suping  q206 ... 5.7s, 18 words  MISROUTED -> PLAN_GENERAL
+[201/234] persona   rung 1 suping  q207 ... 12.1s, 362 words
+[202/234] persona   rung 1 suping  q208 ... 13.2s, 340 words
+[203/234] persona   rung 6 marcus  q201 ... 20.4s, 69 words  MISROUTED -> PLAN_INJURY
+[204/234] persona   rung 6 marcus  q202 ... 18.3s, 115 words
+[205/234] persona   rung 6 marcus  q203 ... 26.0s, 134 words
+[206/234] persona   rung 6 marcus  q204 ... 20.8s, 69 words  MISROUTED -> PLAN_GENERAL
+[207/234] persona   rung 6 marcus  q205 ... 17.3s, 64 words
+[208/234] persona   rung 6 marcus  q206 ... 21.0s, 69 words  MISROUTED -> PLAN_GENERAL
+[209/234] persona   rung 6 marcus  q207 ... 23.5s, 98 words
+[210/234] persona   rung 6 marcus  q208 ... 28.6s, 77 words
+[211/234] persona   rung 6 rita    q201 ... 16.5s, 65 words  MISROUTED -> PLAN_GENERAL
+[212/234] persona   rung 6 rita    q202 ... 18.4s, 78 words
+[213/234] persona   rung 6 rita    q203 ... 23.6s, 90 words
+[214/234] persona   rung 6 rita    q204 ... 6.0s, 14 words  MISROUTED -> PLAN_GENERAL
+[215/234] persona   rung 6 rita    q205 ... 20.0s, 78 words
+[216/234] persona   rung 6 rita    q206 ... 5.8s, 14 words  MISROUTED -> PLAN_GENERAL
+[217/234] persona   rung 6 rita    q207 ... 25.5s, 166 words
+[218/234] persona   rung 6 rita    q208 ... 5.9s, 14 words  MISROUTED -> PLAN_GENERAL
+[219/234] persona   rung 6 sam     q201 ... 2.2s, 18 words  MISROUTED -> PLAN_INJURY
+[220/234] persona   rung 6 sam     q202 ... 24.6s, 79 words
+[221/234] persona   rung 6 sam     q203 ... 23.7s, 72 words
+[222/234] persona   rung 6 sam     q204 ... 20.2s, 66 words  MISROUTED -> PLAN_INJURY
+[223/234] persona   rung 6 sam     q205 ... 34.5s, 188 words
+[224/234] persona   rung 6 sam     q206 ... 6.1s, 18 words  MISROUTED -> PLAN_GENERAL
+[225/234] persona   rung 6 sam     q207 ... 22.9s, 104 words
+[226/234] persona   rung 6 sam     q208 ... 19.8s, 66 words  MISROUTED -> PLAN_INJURY
+[227/234] persona   rung 6 suping  q201 ... 2.1s, 18 words  MISROUTED -> PLAN_GENERAL
+[228/234] persona   rung 6 suping  q202 ... 25.9s, 167 words
+[229/234] persona   rung 6 suping  q203 ... 25.4s, 106 words
+[230/234] persona   rung 6 suping  q204 ... 25.5s, 118 words
+[231/234] persona   rung 6 suping  q205 ... 25.0s, 115 words
+[232/234] persona   rung 6 suping  q206 ... 5.9s, 18 words  MISROUTED -> PLAN_GENERAL
+[233/234] persona   rung 6 suping  q207 ... 24.8s, 152 words
+[234/234] persona   rung 6 suping  q208 ... 27.7s, 133 words
+done in 67.0 min
+64 rows in plan, 170 already done, 64 to run
+[  1/64] persona   rung 1 marcus  q201 ... 20.4s, 69 words  MISROUTED -> PLAN_GENERAL
+[  2/64] persona   rung 1 marcus  q202 ... 7.9s, 204 words
+[  3/64] persona   rung 1 marcus  q203 ... 15.7s, 417 words
+[  4/64] persona   rung 1 marcus  q204 ... 20.3s, 69 words  MISROUTED -> PLAN_GENERAL
+[  5/64] persona   rung 1 marcus  q205 ... 11.9s, 354 words
+[  6/64] persona   rung 1 marcus  q206 ... 15.0s, 52 words  MISROUTED -> PLAN_GENERAL
+[  7/64] persona   rung 1 marcus  q207 ... 12.2s, 347 words
+[  8/64] persona   rung 1 marcus  q208 ... 12.0s, 278 words
+[  9/64] persona   rung 1 rita    q201 ... 22.6s, 62 words  MISROUTED -> PLAN_GENERAL
+[ 10/64] persona   rung 1 rita    q202 ... 7.1s, 188 words
+[ 11/64] persona   rung 1 rita    q203 ... 12.7s, 285 words
+[ 12/64] persona   rung 1 rita    q204 ... 10.0s, 260 words
+[ 13/64] persona   rung 1 rita    q205 ... 7.1s, 193 words
+[ 14/64] persona   rung 1 rita    q206 ... 5.6s, 14 words  MISROUTED -> PLAN_GENERAL
+[ 15/64] persona   rung 1 rita    q207 ... 1.5s, 14 words  MISROUTED -> PLAN_GENERAL
+[ 16/64] persona   rung 1 rita    q208 ... 9.5s, 249 words
+[ 17/64] persona   rung 1 sam     q201 ... 5.8s, 18 words  MISROUTED -> PLAN_GENERAL
+[ 18/64] persona   rung 1 sam     q202 ... 9.0s, 252 words
+[ 19/64] persona   rung 1 sam     q203 ... 13.3s, 343 words
+[ 20/64] persona   rung 1 sam     q204 ... 11.7s, 276 words
+[ 21/64] persona   rung 1 sam     q205 ... 11.5s, 276 words
+[ 22/64] persona   rung 1 sam     q206 ... 18.0s, 483 words
+[ 23/64] persona   rung 1 sam     q207 ... 21.9s, 611 words
+[ 24/64] persona   rung 1 sam     q208 ... 9.9s, 212 words
+[ 25/64] persona   rung 1 suping  q201 ... 5.7s, 18 words  MISROUTED -> PLAN_GENERAL
+[ 26/64] persona   rung 1 suping  q202 ... 11.6s, 346 words
+[ 27/64] persona   rung 1 suping  q203 ... 12.0s, 283 words
+[ 28/64] persona   rung 1 suping  q204 ... 5.7s, 18 words  MISROUTED -> PLAN_GENERAL
+[ 29/64] persona   rung 1 suping  q205 ... 10.6s, 311 words
+[ 30/64] persona   rung 1 suping  q206 ... 13.5s, 343 words
+[ 31/64] persona   rung 1 suping  q207 ... 17.1s, 466 words
+[ 32/64] persona   rung 1 suping  q208 ... 5.6s, 64 words
+[ 33/64] persona   rung 6 marcus  q201 ... 15.5s, 59 words  MISROUTED -> PLAN_GENERAL
+[ 34/64] persona   rung 6 marcus  q202 ... 24.6s, 101 words
+[ 35/64] persona   rung 6 marcus  q203 ... 20.9s, 66 words
+[ 36/64] persona   rung 6 marcus  q204 ... 20.9s, 69 words  MISROUTED -> PLAN_GENERAL
+[ 37/64] persona   rung 6 marcus  q205 ... 19.0s, 138 words
+[ 38/64] persona   rung 6 marcus  q206 ... 21.1s, 70 words  MISROUTED -> PLAN_GENERAL
+[ 39/64] persona   rung 6 marcus  q207 ... 24.9s, 119 words
+[ 40/64] persona   rung 6 marcus  q208 ... 23.1s, 129 words
+[ 41/64] persona   rung 6 rita    q201 ... 17.4s, 65 words  MISROUTED -> PLAN_GENERAL
+[ 42/64] persona   rung 6 rita    q202 ... 18.1s, 75 words
+[ 43/64] persona   rung 6 rita    q203 ... 22.1s, 97 words
+[ 44/64] persona   rung 6 rita    q204 ... 5.9s, 14 words  MISROUTED -> PLAN_GENERAL
+[ 45/64] persona   rung 6 rita    q205 ... 20.9s, 62 words
+[ 46/64] persona   rung 6 rita    q206 ... 5.9s, 14 words  MISROUTED -> PLAN_GENERAL
+[ 47/64] persona   rung 6 rita    q207 ... 30.0s, 115 words
+[ 48/64] persona   rung 6 rita    q208 ... 22.4s, 106 words
+[ 49/64] persona   rung 6 sam     q201 ... 6.2s, 18 words  MISROUTED -> PLAN_GENERAL
+[ 50/64] persona   rung 6 sam     q202 ... 20.6s, 120 words
+[ 51/64] persona   rung 6 sam     q203 ... 24.3s, 94 words
+[ 52/64] persona   rung 6 sam     q204 ... 26.4s, 84 words
+[ 53/64] persona   rung 6 sam     q205 ... 32.6s, 182 words
+[ 54/64] persona   rung 6 sam     q206 ... 31.0s, 193 words
+[ 55/64] persona   rung 6 sam     q207 ... 23.7s, 79 words
+[ 56/64] persona   rung 6 sam     q208 ... 22.5s, 127 words
+[ 57/64] persona   rung 6 suping  q201 ... 6.0s, 18 words  MISROUTED -> PLAN_GENERAL
+[ 58/64] persona   rung 6 suping  q202 ... 27.8s, 105 words
+[ 59/64] persona   rung 6 suping  q203 ... 26.8s, 144 words
+[ 60/64] persona   rung 6 suping  q204 ... 21.1s, 110 words
+[ 61/64] persona   rung 6 suping  q205 ... 25.9s, 69 words
+[ 62/64] persona   rung 6 suping  q206 ... 20.1s, 106 words
+[ 63/64] persona   rung 6 suping  q207 ... 22.9s, 95 words
+[ 64/64] persona   rung 6 suping  q208 ... 24.3s, 132 words
+done in 17.5 min

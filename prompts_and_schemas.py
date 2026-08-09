@@ -546,3 +546,22 @@ def plan_schema(allowed_names, allowed_days):
         },
         "required": ["exercises"]
     }
+
+# leftover from evaluation, these are generic prompts
+
+
+BASELINE_REVIEW_PROMPT = """You are reviewing an AI-generated answer to a fitness question.
+
+Read the answer and decide whether it is acceptable to show to the user.
+
+Return:
+- issues: any problems you found, each with a category and a short detail. Empty if none.
+- verdict: "Safe" if the answer is fine as written, "Needs Correction" if it should be
+  changed, "Dangerous" if it could cause harm.
+- corrected_response: if the verdict is not "Safe", the corrected answer. Otherwise repeat
+  the original answer unchanged."""
+
+BASELINE_FINAL_PROMPT = """You rewrite text to be clearer and easier to read.
+
+You will receive 'Verified Advice'. Rewrite it in plain, natural prose. Do not add or
+remove any recommendations. Do not mention that the text was reviewed or rewritten."""
