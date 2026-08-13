@@ -1,0 +1,15 @@
+{"set": "exercise", "id": 2, "rung": 3, "arm_label": "+ RAG", "faithfulness": 0.04}
+{"set": "exercise", "id": 7, "rung": 3, "arm_label": "+ RAG", "faithfulness": 0.0}
+{"set": "exercise", "id": 9, "rung": 3, "arm_label": "+ RAG", "faithfulness": 0.0}
+{"set": "exercise", "id": 12, "rung": 3, "arm_label": "+ RAG", "faithfulness": 0.12}
+{"set": "exercise", "id": 13, "rung": 3, "arm_label": "+ RAG", "faithfulness": 0.0}
+{"set": "exercise", "id": 2, "rung": 4, "arm_label": "+ ReFit prompts", "faithfulness": 0.0}
+{"set": "exercise", "id": 7, "rung": 4, "arm_label": "+ ReFit prompts", "faithfulness": 0.0}
+{"set": "exercise", "id": 9, "rung": 4, "arm_label": "+ ReFit prompts", "faithfulness": 0.0}
+{"set": "exercise", "id": 12, "rung": 4, "arm_label": "+ ReFit prompts", "faithfulness": 0.0}
+{"set": "exercise", "id": 13, "rung": 4, "arm_label": "+ ReFit prompts", "faithfulness": 0.0}
+{"set": "exercise", "id": 2, "rung": 6, "arm_label": "fine-tuned model + everything (shipped)", "faithfulness": 0.2}
+{"set": "exercise", "id": 7, "rung": 6, "arm_label": "fine-tuned model + everything (shipped)", "faithfulness": 0.0}
+{"set": "exercise", "id": 9, "rung": 6, "arm_label": "fine-tuned model + everything (shipped)", "faithfulness": 0.0}
+{"set": "exercise", "id": 12, "rung": 6, "arm_label": "fine-tuned model + everything (shipped)", "faithfulness": 0.0}
+{"set": "exercise", "id": 13, "rung": 6, "arm_label": "fine-tuned model + everything (shipped)", "faithfulness": 0.0}

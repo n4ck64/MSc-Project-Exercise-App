@@ -176,7 +176,7 @@ function Plans({ refreshSignal, userId }: { refreshSignal: number, userId: numbe
         load()
     }, [refreshSignal, userId])
 
-    // update ONE row immutably (same move as Exercises' toggleFilter)
+    // update ONE row immutably 
     function onChange(key: string, patch: Partial<Progress>) {
         setProgress(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }))
     }

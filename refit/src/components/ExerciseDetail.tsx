@@ -36,10 +36,8 @@ export function pill(colors: { bg: string; text: string }) {
     }
 }
 
-// The exercise-detail card content: name, pills, muscle roles, the muscle map,
-// and description. Deliberately has no overlay/positioning of its own — callers
-// (Exercises.tsx's rect-anchored popup, Chat.tsx's centered modal) wrap this in
-// whatever container fits their context.
+// The exercise-detail card content: name, pills, muscle roles, the muscle map, and descriptions
+
 function ExerciseDetail({ ex, onClose }: { ex: Exercise; onClose: () => void }) {
     return (
         <div>

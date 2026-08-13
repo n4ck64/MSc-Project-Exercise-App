@@ -17,16 +17,9 @@ const AVATARS: Record<number, string> = {
 
 function App() {
   const [activeTab, setActiveTab] = useState("chat")
-  // bumping this tells Plans to refetch. We bump it (not just switch tabs) only
-  // when a new plan is built or edited, so normal tab-clicks keep any in-session progress.
   const [planNonce, setPlanNonce] = useState(0)
-  // Nutrition refetches on every switch TO the tab, not just when chat logs food:
-  // the page is mounted permanently behind display:none, so without this it would
-  // still show whatever it fetched on page load.
-  const [nutritionNonce, setNutritionNonce] = useState(0)
 
-  // dev-only user switcher — no auth yet, so this is how multi-user testing
-  // picks which seeded persona (evaluation/personas.md) chat/plans act as.
+  // dev-only user switcher 
   const [users, setUsers] = useState<User[]>([])
   const [userId, setUserId] = useState(1)
 

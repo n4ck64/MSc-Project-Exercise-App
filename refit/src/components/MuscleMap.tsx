@@ -2,12 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 export type MuscleIds = { Primary: number[]; Secondary: number[]; Stabiliser: number[] }
 
-// bones use a flat, fixed palette; muscle tissue (labelled or not — the face,
-// hands and feet have muscles with no muscle_id in our schema) is either a
-// flat coral fill OR one of ~90 per-path shading gradients the artist used for
-// a fleshier look. Rather than matching muscle fills directly (fragile against
-// gradients), greying is done by EXCLUSION below: skip bones and skip the
-// fill:none detail/outline strokes, grey everything else.
+// bones use the colour below and are left alone
 const BONE_COLORS = ["#e5ecef", "#dbd5c7", "#fde8cc"]
 
 const ROLE_COLOR: Record<keyof MuscleIds, string> = {
@@ -17,9 +12,8 @@ const ROLE_COLOR: Record<keyof MuscleIds, string> = {
 }
 const BASE_FILL = "#d9d6c8"
 
-// the SVG is ~330KB — fetch it once and reuse the text across every popup open,
-// rather than re-requesting it (or worse, bundling it as an imported asset, which
-// would put all that path data straight into the JS bundle)
+// the SVG is ~330KB — fetch it once and reuse the text across every popup open
+
 let cachedSvgText: string | null = null
 let fetchPromise: Promise<string> | null = null
 
@@ -69,7 +63,7 @@ function MuscleMap({ muscleIds }: { muscleIds: MuscleIds }) {
             if (BONE_COLORS.some(c => style.includes(c))) return
             el.style.fill = BASE_FILL
         })
-            ;(Object.keys(muscleIds) as (keyof MuscleIds)[]).forEach(role => {
+            ; (Object.keys(muscleIds) as (keyof MuscleIds)[]).forEach(role => {
                 muscleIds[role].forEach(id => {
                     svg.querySelectorAll<SVGElement>(`.m${id}`).forEach(el => {
                         el.style.fill = ROLE_COLOR[role]
