@@ -167,8 +167,6 @@ def retrieve_foods(query, top_k=3):
 
 
 # Cosine-distance cutoff above which an embedding match is treated as no match.
-# Nearest-neighbour search always returns its closest row however unrelated the
-# query is, so without a cutoff "asdfghjkl" resolves to a real food. Measured over
 
 FOOD_MATCH_MAX_DISTANCE = 0.35
 
@@ -285,47 +283,6 @@ def get_food_id(food_name):
                     """, (food_name,))
         row = cur.fetchone()
     return row[0] if row else None
-
-
-"""def list_foods():
-    returns a list of dictionaries of all foods within the database
-    for searching and browsing within the Nutrition tab,
-
-    with db_lock:
-        cur.execute(f"""
-# SELECT id, food_name, {_MACRO_COLUMNS}
-# FROM foods
-# ORDER BY embedding <= > % s: : vector
-# LIMIT % s
-""", (embedding, top_k))
-    rows = cur.fetchall()
-return [{"food_id": food_id, "food_name": name, **_scale_macros(macros, 100)}
-        for food_id, name, *macros in rows]
-
-with db_lock:
-    cur.execute("""
-# SELECT exercise_id, exercise_name, description, type, difficulty, equipment
-# FROM exercises
-# ORDER BY exercise_name
-""")
-
-        rows = cur.fetchall()
-
-        exercises = []
-
-        for ex_id, name, description, type_, difficulty, equipment in rows:
-            muscles, muscle_ids = _muscle_roles_for_exercise(ex_id)
-            exercises.append({
-                "id": ex_id,
-                "name": name,
-                "description": description,
-                "type": type_,
-                "difficulty": difficulty,
-                "equipment": equipment,
-                "muscles": muscles,
-                "muscle_ids": muscle_ids,
-            })
-    return exercises"""
 
 
 def effective_targets(user_id):

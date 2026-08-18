@@ -26,7 +26,15 @@ with open('data/Exercises-Exercises.csv', 'r') as f:
         if not row['exercise_name'].strip():  # skip blank rows
             continue
         cur.execute(
-            "INSERT INTO exercises (exercise_id, exercise_name, description, type, difficulty, equipment) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+            # re-running updates the text, so an edited CSV actually reaches the DB
+            """INSERT INTO exercises (exercise_id, exercise_name, description, type, difficulty, equipment)
+               VALUES (%s, %s, %s, %s, %s, %s)
+               ON CONFLICT (exercise_id) DO UPDATE SET
+                 exercise_name = EXCLUDED.exercise_name,
+                 description   = EXCLUDED.description,
+                 type          = EXCLUDED.type,
+                 difficulty    = EXCLUDED.difficulty,
+                 equipment     = EXCLUDED.equipment""",
             (
                 int(row['exercise_id']),
                 row['exercise_name'].strip(),
@@ -38,10 +46,16 @@ with open('data/Exercises-Exercises.csv', 'r') as f:
         )
 print("Exercises imported.")
 
-# Import muscles_exercised last, as it references both muscles and exercises
+# Import muscles_exercised last, as it references both muscles and exercises.
+# Mappings for exercises that were cut from the corpus are skipped.
+cur.execute("SELECT exercise_id FROM exercises")
+known_exercises = {row[0] for row in cur.fetchall()}
+
 with open('data/Muscles exercised-Muscles exercised.csv', 'r') as f:
     reader = csv.DictReader(f)
     for row in reader:
+        if int(row['exercise_id']) not in known_exercises:
+            continue
         cur.execute(
             "INSERT INTO muscles_exercised (exercise_id, muscle_id, role) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
             (

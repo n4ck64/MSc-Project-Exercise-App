@@ -15,7 +15,7 @@ psycopg2-binary==2.9.12       # binary wheel: no local pg_config/build tools nee
 # --- Vision (pose/image analysis in vision.py) ---
 mediapipe==0.10.9
 opencv-python==4.13.0.92
-numpy==2.4.4
+numpy==1.26.4                 # <2: mediapipe 0.10.9 is built against the numpy 1.x ABI
 
 # --- Data-import scripts in data/ (optional: only to rebuild the DB from source) ---
 pandas==3.0.2

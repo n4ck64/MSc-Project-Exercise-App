@@ -9,7 +9,8 @@ import numpy as np
 import pandas as pd
 import psycopg2
 
-PATH = "/Users/nikolaytinev/Downloads/McCance_Widdowsons_Composition_of_Foods_Integrated_Dataset_2021..xlsx"
+PATH = os.environ.get("COFID_XLSX",
+                "data/McCance_Widdowsons_Composition_of_Foods_Integrated_Dataset_2021.xlsx")
 
 # Column positions in the '1.3 Proximates' sheet (0-indexed).
 POS = {
@@ -25,6 +26,12 @@ def to_num(series):
     """Resolve CoFID sentinels then coerce to numbers: Tr -> 0, N/blank -> NaN."""
     return pd.to_numeric(series.replace({"Tr": 0, "N": np.nan}), errors="coerce")
 
+
+if not os.path.exists(PATH):
+    raise SystemExit(
+        f"CoFID spreadsheet not found at {PATH}.\n"
+        "Download it from https://www.gov.uk/government/publications/composition-of-foods-integrated-dataset-cofid\n"
+        "and set COFID_XLSX to its path.")
 
 # Read the proximates sheet (3-row header -> skiprows=3).
 raw = pd.read_excel(PATH, sheet_name="1.3 Proximates", skiprows=3, header=None)

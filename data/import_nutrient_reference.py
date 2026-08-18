@@ -5,20 +5,6 @@ Source: Public Health England, "Government Dietary Recommendations:
 Government recommendations for energy and nutrients for males and females aged
 1-18 years and 19+ years" (August 2016), Tables 1 and 2 (macronutrients).
 https://www.gov.uk/government/publications/the-eatwell-guide
-
-  * Energy is the EAR (SACN, Dietary Reference Values for Energy, 2011).
-    11-64y is capped at 2500 kcal (M) / 2000 kcal (F) to address overweight.
-  * Protein is the RNI (COMA, Dietary Reference Values, 1991).
-  * Fat / saturated fat / free sugars are population maxima ("less than").
-  * Carbohydrate is a minimum ("at least"); fibre is a target.
-
-Values are transcribed directly from the PDF rather than parsed, because it is
-a small fixed table and exact figures matter. A dash in the source (no
-recommendation for that age, e.g. fat for under-4s) is represented by None and
-simply not stored.
-
-Note: for ages 4-6 the source splits fibre (15 g at 4y, 20 g at 5-6y). We store
-the 5-6y value (20 g) for the whole band; treat age 4 as ~15 g if that matters.
 """
 
 import getpass
@@ -55,7 +41,8 @@ for nutrient, (limit_type, per_band) in DATA.items():
             continue
         male, female = mf
         rows.append(("M", age_min, age_max, nutrient, float(male), limit_type))
-        rows.append(("F", age_min, age_max, nutrient, float(female), limit_type))
+        rows.append(("F", age_min, age_max, nutrient,
+                    float(female), limit_type))
 
 conn = psycopg2.connect(
     dbname=os.environ.get("REFIT_DB_NAME", "exercise_database"),

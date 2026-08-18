@@ -1,9 +1,13 @@
 """Runs the question banks through every rung of the ablation ladder.
 
-Everything goes through the real `run_chat_pipeline`, varying only an ArmConfig, so
-the eval cannot drift from the shipped app. Each row records the config that produced
-it, making the one-variable-per-rung claim auditable from the data file rather than
-from the commit history.
+Every rung goes through `run_chat_pipeline` itself, varying only an ArmConfig, so the
+arms differ by configuration rather than by reimplementation. Each row records the
+config that produced it, making the one-variable-per-rung claim auditable from the
+data file rather than from the commit history.
+
+Running this requires `run_chat_pipeline` to accept an `arm` argument. That injection
+point is instrumentation for the ablation and is not part of the shipped pipeline, so
+this harness runs against an instrumented build. T
 
 Retrieved context is persisted alongside every answer. RAGAS faithfulness needs the
 exact context an answer was grounded on, and that cannot be reconstructed afterwards —
@@ -30,14 +34,12 @@ from pipelines import run_chat_pipeline                          # noqa: E402
 from arms import (EXERCISE_LADDER, NUTRITION_LADDER, PERSONA_ARMS,   # noqa: E402
                   EXERCISE_PREDECESSOR, NUTRITION_PREDECESSOR, verify_ladder)
 from questions import (QUESTIONS, NUTRITION_QUESTIONS, PERSONA_QUESTIONS,  # noqa: E402
-                       SWEEP_PERSONAS, PERSONA, with_persona)
+                       USED_PERSONAS, PERSONA, with_persona)
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ladder.jsonl")
 
 # Progress markers the pipeline yields for the UI. They are not answer text, and one
-# leaking into a judged answer would corrupt both the readability metric and the word
-# count. Kept exhaustive against `grep 'yield "' pipelines.py` — a new status token
-# added to the pipeline must be added here too.
+# leaking into a judged answer would corrupt both the readability metric and the word count
 STATUS_TOKENS = {
     "Commencing...", "Classifying User Query...", "Thinking...", "Reviewing...",
     "Analysing...", "Processing...", "Hungry...", "Uploading...", "Making Plan...",
@@ -49,7 +51,6 @@ SENTINEL_PREFIXES = ("EXERCISES:", "CHOICES:")
 # Intents whose pipelines return a clarifying question or a built plan rather than
 # advice. An eval question routed here has not been answered, so its text cannot be
 # scored for answer quality — the score would be measuring the intent classifier.
-# The rate at which this happens is itself a result worth reporting.
 MISROUTE_INTENTS = {"PLAN_GENERAL", "PLAN_INJURY", "PLAN_EDIT"}
 
 
@@ -183,13 +184,15 @@ def main():
 
         started = time.time()
         try:
-            answer, context, intent = drain(row.pop("prompt"), row["user_id"], arm)
+            answer, context, intent = drain(
+                row.pop("prompt"), row["user_id"], arm)
         except Exception as exc:            # one bad call must not end a 2-hour run
             print(f"FAILED: {exc}")
             continue
 
         row.update({
-            "arm": vars(arm),               # the exact config that produced this answer
+            # the exact config that produced this answer
+            "arm": vars(arm),
             "answer": answer,
             "context": context,
             "intent": intent,

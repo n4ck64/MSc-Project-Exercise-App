@@ -13,8 +13,7 @@ from retrieval import (retrieve_exercises, retrieve_exercise_names,
                        resolve_exercise_name, get_exercise_id)
 from memory import Memory
 from llm import structured_chat
-from user_data import (clear_exercise_ratings, save_plan,
-                       apply_plan_edits, save_user_profile)
+from user_data import save_plan, apply_plan_edits, save_user_profile
 import json
 from classification import (classify_intent, classify_injured_muscle, condense_query,
                             classify_target_muscle, answers_pending_question)
@@ -30,7 +29,6 @@ def run_chat_pipeline(user_input, user_id=1):
     if user_input.strip().lower() == "/clear":
         # wipe the history for debugging
         Memory.clear()
-        clear_exercise_ratings(user_id)
         yield "Chat History Cleared."
         return
 
@@ -243,7 +241,7 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
 
         exercise_description = retrieve_exercise_description(user_input)
 
-        if not exercise_description:
+        if exercise_description is None:
             # if what they type is not in the database, reruns the question
             probable_exercises = Memory.video_probable_exercises
             yield f"CHOICES:That was not recognised, please choose from the list again:|{probable_exercises[0]},{probable_exercises[1]},{probable_exercises[2]}"
@@ -502,6 +500,8 @@ def run_plan_pipeline(user_input, user_id=1):
         # e.g. if user states monday, tuesday and wednesday, it resolves it to 3 days
         slots["number_of_days"] = len(slots["which_days"])
 
+    logging.debug(f"Plan intake slots: {slots}")
+
     # if it is still missing what it needs to build, it asks one combined question and waits
     missing = []
     if not slots["goal"]:
@@ -532,15 +532,22 @@ def run_plan_pipeline(user_input, user_id=1):
                                  injured_muscle_id=injured_ids, equipment=equipment)
     names = [line.replace("Exercise: ", "")
              for line in context.split("\n") if line.startswith("Exercise: ")]
+    logging.debug(f"Plan filters: injured={injured_ids} target={target_ids} "
+                  f"equipment={equipment} query={query!r}")
+    logging.debug(f"Plan candidates: {names}")
 
     plan = structured_chat(
         "llama3.1",
         PLAN_PROMPT + f"\n\nGoal: {slots['goal']}\nDays: {', '.join(days)}",
         context, plan_schema(names, days))
 
+    logging.debug(f"Plan JSON (model): {plan}")
+
     # the model tends to return too few exercises, the below function ensures each day
     # has at least 3 exercises
     _topup_days(plan["exercises"], names, days, slots["goal"])
+
+    logging.debug(f"Plan JSON (after topup): {plan}")
 
     plan_name = f"{slots['goal'].capitalize()} plan" if slots["goal"] else "Weekly plan"
     save_plan(user_id, plan_name, plan["exercises"])

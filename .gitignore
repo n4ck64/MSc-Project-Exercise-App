@@ -1,4 +1,6 @@
 *.gguf
+# 52MB adapter — refit-dpo cannot be built without it
+!finetuning/refit-lora.gguf
 .env
 .env.*
 *.key
@@ -13,8 +15,6 @@ docs/encryption-design-note.md
 paper/refit.tex
 paper/IEEEtran.cls
 paper/.gitignore
-migrations/002_nutrition_log.sql
 evaluation/seed_user.sql
 evaluation/seed_users.sql
-evaluation/arms.py
 *.mov

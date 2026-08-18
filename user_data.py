@@ -2,40 +2,8 @@
 Database WRITE operations for user-generated data.
 """
 
-from datetime import date
 import json
-
-from retrieval import (conn, cur, db_lock, get_food_id, resolve_food_name,
-                       FOOD_MATCH_MAX_DISTANCE)
-
-VALID_DIFFICULTIES = {"Easy", "Medium", "Hard"}
-VALID_LIMIT_TYPES = {"target", "min", "max"}
-
-
-def add_exercise_rating(user_id, exercise_id, difficulty):
-    """Records a user's perceived difficulty for an exercise. Upsert on
-    (user_id, exercise_id): a repeat rating replaces the previous one, so each
-    user keeps at most one rating per exercise. 'difficulty' must be one of
-    VALID_DIFFICULTIES."""
-    if difficulty not in VALID_DIFFICULTIES:
-        raise ValueError(
-            f"difficulty must be one of {sorted(VALID_DIFFICULTIES)}, got {difficulty!r}")
-    with db_lock:
-        cur.execute("""
-                    INSERT INTO user_exercise_difficulty (user_id, exercise_id, difficulty)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (user_id, exercise_id)
-                    DO UPDATE SET difficulty = EXCLUDED.difficulty
-                    """, (user_id, exercise_id, difficulty))
-        conn.commit()
-
-
-def clear_exercise_ratings(user_id):
-    """Deletes all of a user's exercise ratings"""
-    with db_lock:
-        cur.execute(
-            "DELETE FROM user_exercise_difficulty WHERE user_id = %s", (user_id,))
-        conn.commit()
+from retrieval import (conn, cur, db_lock)
 
 
 def save_user_profile(user_id, profile):

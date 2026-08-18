@@ -1,4 +1,4 @@
-# Human eval results — pharmacist rater form
+# Human eval results — expert evaluator rater form
 
 8 raters, 10 items. Full pipeline vs base llama3.1, unblinded via `form_key.csv`.
 

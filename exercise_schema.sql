@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE "user" (
   "user_id" integer PRIMARY KEY,
   "username" varchar(255) UNIQUE NOT NULL,
@@ -14,7 +16,8 @@ CREATE TABLE "exercises" (
   "description" text,
   "type" varchar(20),
   "difficulty" varchar(6) NOT NULL,
-  "equipment" varchar(20) NOT NULL
+  "equipment" varchar(20) NOT NULL,
+  "embedding" vector(768)                      -- nomic-embed-text
 );
 
 CREATE TABLE "muscles" (
@@ -56,6 +59,7 @@ CREATE TABLE "plan_exercises" (
 -- Per-user override of an exercise's difficulty. The global
 -- exercises.difficulty is the shared default; a row here wins for that user,
 -- letting people re-rate exercises they personally find easier or harder.
+-- NOT IMPLEMENTED, FUTURE WORK!
 CREATE TABLE "user_exercise_difficulty" (
   "user_id" integer,
   "exercise_id" integer,
@@ -65,33 +69,27 @@ CREATE TABLE "user_exercise_difficulty" (
 
 -- Nutrition reference data: CoFID 2021 (McCance & Widdowson's Composition of Foods).
 -- All values are per 100g of food, except alcoholic beverages which are per 100ml.
--- CoFID sentinels are resolved on import: Tr (trace) -> 0, N/blank (unmeasured) -> NULL.
-CREATE EXTENSION IF NOT EXISTS vector;
-
 CREATE TABLE "foods" (
   "id"             serial PRIMARY KEY,
-  "food_code"      varchar(10) NOT NULL,      -- CoFID code, e.g. '13-145'
+  "food_code"      varchar(10) NOT NULL,      
   "food_name"      varchar(255) NOT NULL,
   "description"    text,
-  "food_group"     varchar(4),                -- CoFID group code, e.g. 'DG'
+  "food_group"     varchar(4),                
   "kcal"           real,
   "protein_g"      real,
   "fat_g"          real,
   "carb_g"         real,
   "total_sugars_g" real,
-  "fibre_nsp_g"    real,                       -- Non-starch polysaccharide (Englyst)
-  "fibre_aoac_g"   real,                       -- AOAC fibre
+  "fibre_nsp_g"    real,                       
+  "fibre_aoac_g"   real,                       
   "embedding"      vector(768)                 -- nomic-embed-text
 );
 CREATE INDEX ON "foods" ("food_code");
 
--- UK dietary guideline values, from PHE "Government Dietary Recommendations"
--- (2016), Tables 1 & 2 (macronutrients). Energy = EAR (SACN 2011); protein =
--- RNI (COMA 1991); the rest are population targets. Look up a user's row with:
---   WHERE sex = <user.gender> AND <age> BETWEEN age_min AND age_max
+
 CREATE TABLE "nutrient_reference" (
   "id"         serial PRIMARY KEY,
-  "sex"        varchar(1) NOT NULL,       -- 'M' / 'F' (matches "user".gender)
+  "sex"        varchar(1) NOT NULL,       -- 'M' / 'F' 
   "age_min"    integer NOT NULL,
   "age_max"    integer NOT NULL,          -- 200 = open-ended (75+)
   "nutrient"   varchar(20) NOT NULL,      -- energy_kcal, protein_g, fat_g, satfat_g, carb_g, free_sugars_g, fibre_g
