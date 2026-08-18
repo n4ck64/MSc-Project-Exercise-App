@@ -17,3 +17,4 @@ migrations/002_nutrition_log.sql
 evaluation/seed_user.sql
 evaluation/seed_users.sql
 evaluation/arms.py
+*.mov

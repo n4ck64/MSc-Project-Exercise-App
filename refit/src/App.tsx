@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import Chat from './pages/Chat'
 import Exercises from './pages/Exercises'
 import Plans from './pages/Plans'
-import Nutrition from './pages/Nutrition'
 
 type User = { user_id: number, full_name: string }
 
@@ -35,9 +34,6 @@ function App() {
     setActiveTab("plans")
   }
 
-  const goToNutrition = () => {
-    setActiveTab("nutrition")
-  }
 
   return (
     <>
@@ -47,7 +43,6 @@ function App() {
           <div className="sidebar-tab" onClick={() => setActiveTab("chat")}>Chat</div>
           <div className="sidebar-tab" onClick={() => setActiveTab("exercises")}>Exercises</div>
           <div className="sidebar-tab" onClick={() => setActiveTab("plans")}>Plans</div>
-          <div className="sidebar-tab" onClick={goToNutrition}>Nutrition</div>
           <select value={userId} onChange={e => setUserId(Number(e.target.value))}
             title="Switch test user (dev only)"
             style={{ marginTop: "20px", width: "80%", marginLeft: "20px" }}>
@@ -67,10 +62,6 @@ function App() {
         <div style={{ display: activeTab === "plans" ? "contents" : "none" }}>
           <Plans refreshSignal={planNonce} userId={userId} />
         </div>
-        <div style={{ display: activeTab === "nutrition" ? "contents" : "none" }}>
-          <Nutrition />
-        </div>
-
       </div>
     </>
 

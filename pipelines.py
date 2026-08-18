@@ -17,8 +17,7 @@ from user_data import (clear_exercise_ratings, save_plan,
                        apply_plan_edits, save_user_profile)
 import json
 from classification import (classify_intent, classify_injured_muscle, condense_query,
-                            classify_target_muscle, answers_pending_question,
-                            classify_confirmation)
+                            classify_target_muscle, answers_pending_question)
 import logging
 
 
@@ -192,6 +191,8 @@ def run_chat_pipeline(user_input, user_id=1):
     if Memory.last_exercises:
         yield f"EXERCISES:{','.join(Memory.last_exercises)}"
 
+# ==============================Video Function==========================================================
+
 
 def run_video_pipeline(user_input, video_summary=None, video_choice=None):
     """runs only when video is present, it is responsible for
@@ -275,42 +276,13 @@ def run_video_pipeline(user_input, video_summary=None, video_choice=None):
             {"role": "assistant", "content": response_content}
         ]
 
-
-def update_user_profile(user_input, user_id):
-    """Merges anything the user just said about themselves into their stored profile.
-
-    Runs on the raw message, before answering, so a fact disclosed this turn is
-    available to this turn's answer. The extractor is given the existing profile and
-    returns the merge — see PROFILE_PROMPT; writing only the new facts would drop
-    everything learned earlier.
-
-    Never fatal: a profile that fails to update is worth less than an answer, so a
-    bad extraction degrades tailoring rather than breaking the reply.
-    """
-    existing = get_user_profile(user_id)
-    try:
-        merged = structured_chat(
-            "llama3.1", PROFILE_PROMPT,
-            f"Profile so far:\n{json.dumps(existing)}\n\nUser message: {user_input}",
-            PROFILE_SCHEMA)
-    except Exception as exc:
-        logging.warning(f"Profile extraction failed, keeping existing: {exc}")
-        return existing
-
-    if merged != existing:
-        save_user_profile(user_id, merged)
-        logging.debug(f"Profile updated for user {user_id}: {merged}")
-    return merged
+# ==============================Nutrition Functions==========================================================
 
 
 def route_nutrition(user_input, user_id=1):
     """Tool that determines which nutrition function to run based on the user query.
     Once llama3.1 picks the tool, hard-coded python code extracts the needed information.
-    This mitigates LLM hallucination risk, only risk remaining is choosing the wrong tool.
-
-    Returns (tool, context). For the read tools 'context' is retrieved text that grounds
-    the answerer; for log_food it is a confirmation shown to the user verbatim, because
-    an answerer paraphrasing "log 150g of X?" could misstate what is about to be written."""
+    This mitigates LLM hallucination risk, only risk remaining is choosing the wrong tool."""
     route = structured_chat("llama3.1", NUTRITION_ROUTER_PROMPT,
                             user_input, NUTRITION_ROUTER_SCHEMA)
     logging.debug(f"Nutrition router: {route}")
@@ -372,13 +344,6 @@ def run_nutrition_pipeline(user_input, user_id=1):
     logging.debug(f"User's message: {user_input}")
 
     tool, context = route_nutrition(user_input, user_id)
-
-    # log_food's context is a confirmation of a pending WRITE, so it goes to the user
-    # word for word — running it through the answerer/reviewer/rewriter would let a
-    # model restate the food or the amount it is about to commit.
-    if tool == "log_food":
-        yield context
-        return
 
     if context:
         user_message = (f"Reference data from the UK food database:\n{context}\n"
@@ -446,12 +411,15 @@ def review_and_rewrite(user_input, response, review_prompt, rag_context=None,
         token = chunk.message.content
         yield token
 
+# ==============================Planning Functions==========================================================
+
 
 WEEK = ["monday", "tuesday", "wednesday", "thursday",
         "friday", "saturday", "sunday"]
 
 # how many clarifying questions a single plan edit may ask before we give up and
 # reset, so an edit that never resolves can't trap the user in the loop forever
+# which happened once during development...
 _MAX_EDIT_CLARIFICATIONS = 3
 
 
@@ -531,7 +499,7 @@ def run_plan_pipeline(user_input, user_id=1):
     Memory.plan_slots = slots
 
     if slots["which_days"] and not slots["number_of_days"]:
-        # if user states monday, tuesday and wednesday, it resolves it to 3 days
+        # e.g. if user states monday, tuesday and wednesday, it resolves it to 3 days
         slots["number_of_days"] = len(slots["which_days"])
 
     # if it is still missing what it needs to build, it asks one combined question and waits
@@ -634,9 +602,6 @@ def _resolve_edit(edit, plan_rows, text):
             return None, f"I couldn't find an exercise matching '{name}'."
         return {"op": operation, "exercise_id": exercise_id, "day": edit["to_day"]}, None
 
-    # move_exercise / relative_param / absolute_param all target
-    # a specific row in the current plan, matched by name
-    # the below variable finds all that match, which gets narrowed down later
     matches = _match_plan_exercise(name, plan_rows)
 
     if not matches:
@@ -648,13 +613,13 @@ def _resolve_edit(edit, plan_rows, text):
         edit["from_day"] if operation == "move_exercise" else None)
 
     if len(matches) > 1:
-        # a compound lift can legitimately appear on two days. If the (possibly
-        # continued) text names one of those days, use it; otherwise ask.
+        # a compound lift can appear on two days. If the (possibly
+        # continued) text names one of those days, it is used, otherwise it asks.
         narrowed = _narrow_by_day(matches, text, exclude=destination_day)
         if len(narrowed) == 1:
             matches = narrowed
         else:
-            days = ", ".join(m["day"].capitalize() for match in matches)
+            days = ", ".join(match["day"].capitalize() for match in matches)
             return None, f"You have {name} on multiple days ({days}) — which day's should I change?"
 
     # if the above filtering somehow fails, pulls the first match

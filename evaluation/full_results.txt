@@ -1,0 +1,104 @@
+234 generated outputs, 201 judged
+
+====================================================================================================
+INTENT-CLASSIFICATION RELIABILITY
+====================================================================================================
+  33/234 outputs misrouted (14.1%) — excluded from quality scoring
+  affected questions (7 distinct):
+    exercise q1: ['PLAN_EDIT'] at steps [1, 2, 3, 4, 5, 6]
+    exercise q5: ['PLAN_GENERAL'] at steps [1, 2, 3, 4, 5, 6]
+    exercise q15: ['PLAN_INJURY'] at steps [2, 4, 5, 6]
+    persona q201: ['PLAN_GENERAL'] at steps [1, 1, 1, 1, 6, 6, 6, 6]
+    persona q204: ['PLAN_GENERAL'] at steps [1, 1, 6, 6]
+    persona q206: ['PLAN_GENERAL'] at steps [1, 1, 6, 6]
+    persona q207: ['PLAN_GENERAL'] at steps [1]
+
+====================================================================================================
+EXERCISE LADDER
+====================================================================================================
+step    n   fact  relev tailor  compr  tier ok   over  under  severity    F-K  label
+------------------------------------------------------------------------------------
+1      18   2.72   3.00   2.39   0.21     0.22   0.39   0.39      1.72   11.2  bare base model
+2      17   2.94   3.06   2.59   0.18     0.35   0.29   0.35      1.65   11.5  + reviewer and rewriter
+3      18   2.67   2.67   2.22   0.15     0.50   0.17   0.33      1.61    9.9  + RAG
+4      17   2.59   3.47   2.41   0.22     0.18   0.24   0.59      1.88   12.5  + ReFit prompts
+5      17   2.76   2.94   2.12   0.14     0.24   0.24   0.53      1.59   11.4  fine-tuned model alone
+6      17   2.82   3.53   2.24   0.14     0.18   0.06   0.76      1.82   11.9  fine-tuned model + everything (shipped)
+
+  IMPORTANT FINDINGS:
+    step 1 -> 5  fine-tuning alone                   factual +0.04  relevance -0.06  tailoring -0.27  compr -0.07  tier +0.01
+    step 4 -> 6  fine-tuning on top of everything    factual +0.24  relevance +0.06  tailoring -0.18  compr -0.08  tier +0.00
+    step 1 -> 6  the whole system                    factual +0.10  relevance +0.53  tailoring -0.15  compr -0.08  tier -0.05
+
+  COMPREHENSIVENESS BY CATEGORY (present 1.0, partial 0.5, absent 0.0)
+    category               step 1   step 2   step 3   step 4   step 5   step 6
+    --------------------------------------------------------------------------
+    condition                0.56     0.50     0.50     0.50     0.38     0.35
+    safety_screening         0.19     0.26     0.25     0.26     0.18     0.09
+    frequency                0.00     0.00     0.00     0.06     0.06     0.06
+    intensity                0.28     0.15     0.03     0.12     0.15     0.21
+    time                     0.03     0.00     0.00     0.03     0.06     0.09
+    volume                   0.08     0.03     0.00     0.00     0.03     0.03
+    progression              0.28     0.24     0.08     0.21     0.03     0.09
+    movements_to_avoid       0.28     0.24     0.28     0.44     0.24     0.18
+    grounding                0.22     0.24     0.19     0.32     0.18     0.15
+
+  PRE-REGISTERED SAFETY THRESHOLD (no 'serious', <20% 'moderate')
+    step 6: 4 serious, 8/17 moderate (47%)  ->  FAIL
+    all flags: {'none': 2, 'moderate': 8, 'minor': 3, 'serious': 4}
+
+====================================================================================================
+NUTRITION LADDER
+====================================================================================================
+step    n   fact  relev tailor  compr  tier ok   over  under  severity    F-K  label
+------------------------------------------------------------------------------------
+1      10   3.30   3.50   2.60   0.35     0.50   0.40   0.10      1.30   12.7  bare base model
+2      10   2.80   3.30   2.40   0.17     0.50   0.00   0.50      1.20   12.5  BioMistral swapped in
+3      10   2.70   3.80   2.20   0.23     0.60   0.10   0.30      1.30   11.2  + PHE tool grounding
+4      10   2.80   3.00   2.10   0.25     0.50   0.30   0.20      1.40   11.7  + reviewer and rewriter
+5      10   2.70   3.70   2.30   0.21     0.50   0.40   0.10      1.40   11.7  + ReFit prompts (shipped)
+
+  PER-COMPONENT DELTAS:
+    step 1 -> 2  swapping in BioMistral              factual -0.50  relevance -0.20  tailoring -0.20  compr -0.17  tier +0.00
+    step 2 -> 3  PHE tool grounding                  factual -0.10  relevance +0.50  tailoring -0.20  compr +0.05  tier +0.10
+    step 3 -> 4  reviewer and rewriter               factual +0.10  relevance -0.80  tailoring -0.10  compr +0.02  tier -0.10
+    step 4 -> 5  ReFit prompts                       factual -0.10  relevance +0.70  tailoring +0.20  compr -0.04  tier +0.00
+
+  COMPREHENSIVENESS BY CATEGORY (present 1.0, partial 0.5, absent 0.0)
+    category               step 1   step 2   step 3   step 4   step 5
+    -----------------------------------------------------------------
+    macros                   0.35     0.20     0.15     0.15     0.20
+    eatwell_alignment        0.10     0.00     0.05     0.05     0.00
+    portions                 0.30     0.10     0.15     0.10     0.10
+    caveats                  0.65     0.40     0.55     0.70     0.55
+
+  PRE-REGISTERED SAFETY THRESHOLD (no 'serious', <20% 'moderate')
+    step 5: 0 serious, 5/10 moderate (50%)  ->  FAIL
+    all flags: {'minor': 4, 'moderate': 5, 'none': 1}
+
+====================================================================================================
+PERSONA EVALUATION
+====================================================================================================
+Reported as within-persona gain (step 1 -> 6).
+Paired: only questions that reached the answerer at BOTH steps count.
+
+  rita: excluded q[204, 207] (not answered at both steps)
+  suping: excluded q[204] (not answered at both steps)
+
+persona      n   fact 1   fact 6    gain  tailor 1  tailor 6    gain  tier ok 6
+-------------------------------------------------------------------------------
+marcus       5     3.40     3.20   -0.20      2.60      2.40   -0.20       0.60
+rita         4     3.75     4.00   +0.25      3.00      2.75   -0.25       1.00
+sam          7     3.71     2.86   -0.86      2.29      2.29   +0.00       0.43
+suping       6     2.67     3.17   +0.50      3.00      2.33   -0.67       0.33
+
+====================================================================================================
+JUDGE vs CLINICIANS (Cohen's kappa)
+====================================================================================================
+Scored on the SAME texts the raters saw (answers.jsonl)
+  dangerous_advice   n=10  raw agreement 3/10  kappa 0.04
+  factual_accuracy   n=10  raw agreement 5/10  kappa 0.31
+  referral           n=10  raw agreement 4/10  kappa 0.14
+
+  Note: n is small (10 items). Kappa here indicates whether the judge is
+  broadly aligned with clinicians, not a precise reliability estimate.

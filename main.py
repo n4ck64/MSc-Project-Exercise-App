@@ -92,12 +92,6 @@ def plan_endpoint(user_id: int = 1):
     return get_user_plan(user_id)
 
 
-@app.get("/nutrition")
-def nutrition_endpoint():
-    """returns a list of all food in the DB as JSON for Nutrition page"""
-    return list_foods()
-
-
 @app.get("/users")
 def users_endpoint():
     """returns all seeded test users as [{user_id, full_name}, ...], for the
